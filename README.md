@@ -2,9 +2,9 @@
 
 In situ data management layer for easily using in transit visualization.
 An example video of the our viewer can be seen on [YouTube](https://youtu.be/YUH55CvPmxg),
-the viewer code is available [here]().
+the viewer code is available [here](https://github.com/ospray/ospray_senpai).
 This is the code for the core library described in the paper, see
-[the paper for more details]().
+[the paper for more details](https://www.willusher.io/publications/libis-isav18).
 
 Will Usher, Silvio Rizzi, Ingo Wald, Jefferson Amstutz, Joseph Insley,
 Venkatram Vishwanath, Nicola Ferrier, Michael E. Papka, and Valerio Pascucci.
