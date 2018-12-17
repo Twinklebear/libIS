@@ -21,7 +21,7 @@
 #include <random>
 #include <vector>
 #include <mpi.h>
-#include "is_render.h"
+#include "libIS/is_client.h"
 
 int main(int ac, char **av) {
 	MPI_Init(&ac, &av);
@@ -31,7 +31,7 @@ int main(int ac, char **av) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-	std::cout << "#render rank " << rank << "/" << world_size << "\n";
+	std::cout << "#client rank " << rank << "/" << world_size << "\n";
 
 	std::string server;
 	int port = -1;
@@ -43,9 +43,9 @@ int main(int ac, char **av) {
 		}
 	}
 
-	is::render::connect(server, port, MPI_COMM_WORLD);
+	is::client::connect(server, port, MPI_COMM_WORLD);
 
-	auto regions = is::render::query();
+	auto regions = is::client::query();
 
 	for (int i = 0; i < world_size; ++i) {
 		if (rank == 0) {
@@ -76,7 +76,7 @@ int main(int ac, char **av) {
 		MPI_Barrier(MPI_COMM_WORLD);
 	}
 
-	is::render::disconnect();
+	is::client::disconnect();
 	MPI_Finalize();
 	return 0;
 }

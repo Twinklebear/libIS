@@ -25,6 +25,9 @@
 
 namespace is {
 
+/* An abstract array interface, which may refer to
+ * an array of data we own or are borrowing.
+ */
 struct Array {
 	uint64_t elemStride;
 
@@ -38,6 +41,9 @@ struct Array {
 	size_t stride() const;
 };
 
+/* An array owned by this object, the array will be free'd when
+ * the object goes out of scope
+ */
 struct OwnedArray : Array {
 	std::vector<char> array;
 
@@ -47,6 +53,9 @@ struct OwnedArray : Array {
 	size_t numBytes() const override;
 };
 
+/* An array borrowed by this object, the array will not be free'd when
+ * the object goes out of scope.
+ */
 struct BorrowedArray : Array {
 	void *array;
 	uint64_t arrayBytes;
@@ -58,10 +67,13 @@ struct BorrowedArray : Array {
 	size_t numBytes() const override;
 };
 
+/* A 3D regular grid field of data in the simulation
+ */
 struct Field {
 	std::string name;
 	libISDType dataType;
 	std::array<uint64_t, 3> dims;
+	// The field data
 	std::shared_ptr<Array> array;
 
 	Field();
@@ -72,8 +84,11 @@ struct Field {
 	static Field recv(MPI_Comm comm, const int rank, const int tag);
 };
 
+/* An array of particles in the simulation, along with any ghost particles
+ */
 struct Particles {
 	uint64_t numParticles, numGhost;
+	// The particle data
 	std::shared_ptr<Array> array;
 
 	Particles();
@@ -93,6 +108,7 @@ struct Particles {
  */
 struct SimState {
 	libISBox3f world, local, ghost;
+	// The rank we received this data from
 	int simRank;
 	std::unordered_map<std::string, Field> fields;
 	Particles particles;

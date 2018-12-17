@@ -21,8 +21,8 @@
 #include <random>
 #include <vector>
 #include <mpi.h>
-#include "is_sim.h"
-#include "vec.h"
+#include "libIS/is_sim.h"
+#include "libIS/vec.h"
 
 struct Particle {
 	vec3<float> pos;

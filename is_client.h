@@ -26,7 +26,7 @@
  */
 
 namespace is {
-namespace render {
+namespace client {
 
 /* Connect to the simulation running libis_sim on the host
  * and port specified.

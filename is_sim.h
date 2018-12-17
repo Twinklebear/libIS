@@ -36,14 +36,14 @@ typedef struct libISSimState libISSimState;
  * and listen on the port number specified.
  */
 extern "C" void libISInit(MPI_Comm simWorld, const int port);
-/* Initialize the the library to use the already established
+/* Initialize the library to use the already established
  * communicator with the client processes.
  */
 extern "C" void libISInitWithExisting(MPI_Comm simWorld, MPI_Comm clientComm);
 /* Shutdown the library, cleans up MPI communicator and terminates
  * the background listening thread.
  */
-extern "C" void libISFinalize();
+extern "C" void libISFinalize(void);
 /* Send the data out for processing to the client, if one has
  * connected since the last call to process.
  */
@@ -84,8 +84,8 @@ extern "C" void libISSetField(libISSimState *state, const char *fieldName,
  * numParticles: number of local particles in the array
  * numGhostParticles: number of ghost particles in the array. The ghost particles
  *                    should come after the local particles in the array.
- * particleStride: the size of an individiual particle struct.
- * data: pointer to the field data, will be shared with the simulation with a copy
+ * particleStride: the size of an individual particle struct.
+ * data: pointer to the particle data, will be shared with the simulation with a copy
  *       sent to clients during processing.
  */
 extern "C" void libISSetParticles(libISSimState *state, const uint64_t numParticles,

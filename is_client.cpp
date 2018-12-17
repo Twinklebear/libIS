@@ -28,11 +28,11 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <mpi.h>
-#include "is_render.h"
+#include "is_client.h"
 #include "is_command.h"
 
 namespace is {
-namespace render {
+namespace client {
 
 static bool LIBIS_LOGGING = false;
 static std::string LIBIS_LOG_OUTPUT;
