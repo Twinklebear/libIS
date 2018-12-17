@@ -200,7 +200,7 @@ void ConnectionManager::process(const SimState *state) {
 				clientCommand = incomingCommand;
 			}
 		}
-		if (newCommand == MPI_REQUEST_NULL) {
+		if (newCommand == MPI_REQUEST_NULL && clientCommand != DISCONNECT) {
 			MPI_Irecv(&incomingCommand, 1, MPI_INT, MPI_ANY_SOURCE,
 					4505, clientComm, &newCommand);
 		}
