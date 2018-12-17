@@ -24,6 +24,12 @@
 #include "libIS/is_sim.h"
 #include "libIS/vec.h"
 
+/* The example simulation generates a random set
+ * of particles on each rank and "simulates" them with
+ * a random velocity each timestep. The simulation also
+ * sends some example 3D grid fields which contain constant data
+ */ 
+
 struct Particle {
 	vec3<float> pos;
 	int attrib;
@@ -37,7 +43,6 @@ size_t NUM_PARTICLES = 2000;
 int N_STEPS = 40;
 std::mt19937 rng;
 libISBox3f bounds;
-bool mpi_multilaunch = false;
 
 std::vector<float> field_one;
 std::vector<uint8_t> field_two;
@@ -57,16 +62,9 @@ int main(int ac, char **av) {
 			NUM_PARTICLES = std::atoi(av[++i]);
 		} else if (std::strcmp(av[i], "-quiet") == 0) {
 			quiet = true;
-		} else if (std::strcmp(av[i], "-mpi-multi") == 0) {
-			mpi_multilaunch = true;
-		}
 	}
 
 	MPI_Comm sim_comm = MPI_COMM_WORLD;
-	if (mpi_multilaunch) {
-		const int test_tag = 0x54455354;
-		MPI_Comm_split(MPI_COMM_WORLD, test_tag, 0, &sim_comm);
-	}
 	MPI_Comm_rank(sim_comm, &rank);
 	MPI_Comm_size(sim_comm, &size);
 	std::cout << "#sim rank " << rank << "/" << size << "\n";
@@ -75,13 +73,8 @@ int main(int ac, char **av) {
 	brick_id = vec3<int>(rank % grid.x, (rank / grid.x) % grid.y,
 			rank / (grid.x * grid.y));
 
-	if (mpi_multilaunch) {
-		std::cout << "Connecting with existing comm" << std::endl;
-		libISInitWithExisting(sim_comm, MPI_COMM_WORLD);
-	} else {
-		std::cout << "Waiting for network connection" << std::endl;
-		libISInit(MPI_COMM_WORLD, 29374);
-	}
+	std::cout << "Waiting for client connection on port 29374" << std::endl;
+	libISInit(MPI_COMM_WORLD, 29374);
 
 	rng = std::mt19937(std::random_device()());
 	init();
@@ -98,6 +91,7 @@ int main(int ac, char **av) {
 	libISSetLocalBounds(libis_state, bounds);
 	libISSetGhostBounds(libis_state, bounds);
 
+	// Setup the shared pointers to our particle and field data
 	libISSetParticles(libis_state, NUM_PARTICLES, 0, sizeof(Particle), particle.data());
 	libISSetField(libis_state, "field_one", field_dims.data(), FLOAT, field_one.data());
 	libISSetField(libis_state, "field_two", field_dims.data(), UINT8, field_two.data());
@@ -109,14 +103,12 @@ int main(int ac, char **av) {
 		if (rank == 0 && !quiet) {
 			std::cout << "Timestep " << i << "\n";
 		}
+		// Send data to clients or process commands each timestep
 		libISProcess(libis_state);
 	}
 
 	libISFreeSimState(libis_state);
 	libISFinalize();
-	if (mpi_multilaunch) {
-		MPI_Comm_free(&sim_comm);
-	}
 	MPI_Finalize();
 	return 0;
 }

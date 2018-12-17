@@ -313,3 +313,24 @@ object will have the stride set to the size of a particle. The type information
 is kept separately, either on the `Field` structure, or is assumed to be known
 by the client in the case of the `Particles`.
 
+## Running the Examples
+
+The example simulation and client show how to setup a decoupled,
+in transit use case with libIS. The simulation listens on
+port 29374 for the client, who will connect and print out the metadata
+about the simulation's data, then disconnect.
+
+In one terminal, run the simulation:
+```
+mpirun -n 2 ./example_sim
+```
+
+In a second terminal, run the client and connect to the simulation:
+```
+mpirun -n 1 ./example_client -server localhost -port 29374
+```
+
+The simulation pretends to work by sleeping every 2 seconds
+for each timestep. After launching the client you should
+see it connect and print out the meta-data, and exit.
+

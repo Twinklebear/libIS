@@ -23,6 +23,11 @@
 #include <mpi.h>
 #include "libIS/is_client.h"
 
+/* The example client connects to the simulation and
+ * prints out the meta-data about its particles, fields
+ * and bounds, then disconnects.
+ */
+
 int main(int ac, char **av) {
 	MPI_Init(&ac, &av);
 
@@ -43,13 +48,16 @@ int main(int ac, char **av) {
 		}
 	}
 
+	// Connect to the simulation
 	is::client::connect(server, port, MPI_COMM_WORLD);
 
+	// Query the data from the simulation
 	auto regions = is::client::query();
 
 	for (int i = 0; i < world_size; ++i) {
 		if (rank == 0) {
 			std::cout << "Rank " << rank << " has " << regions.size() << " regions\n";
+			// For each region we received, print out its data
 			for (const auto &r : regions) {
 				std::cout << "region has " << r.particles.numParticles
 					<< " particles and " << r.fields.size() << " fields\n";
