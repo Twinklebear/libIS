@@ -62,6 +62,7 @@ int main(int ac, char **av) {
 			NUM_PARTICLES = std::atoi(av[++i]);
 		} else if (std::strcmp(av[i], "-quiet") == 0) {
 			quiet = true;
+		}
 	}
 
 	MPI_Comm sim_comm = MPI_COMM_WORLD;
