@@ -40,12 +40,16 @@ int main(int ac, char **av) {
 
 	std::string server;
 	int port = -1;
-	for (int i = 0; i < ac; ++i) {
+	for (int i = 1; i < ac; ++i) {
 		if (std::strcmp(av[i], "-server") == 0) {
 			server = av[++i];
 		} else if (std::strcmp(av[i], "-port") == 0) {
 			port = std::atoi(av[++i]);
 		}
+	}
+	if (server.empty() || port < 0) {
+		std::cerr << "Usage: " << av[0] << " -server <server> -port <port>\n";
+		return 1;
 	}
 
 	// Connect to the simulation
