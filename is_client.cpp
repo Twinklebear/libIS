@@ -296,6 +296,13 @@ void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm) {
 std::vector<SimState> query() {
 	return sim->query();
 }
+std::future<std::vector<SimState>> query_async() {
+	std::future<std::vector<SimState>> future =
+		std::async(std::launch::async, [](){
+			return query();
+		});
+	return future;
+}
 void disconnect() {
 	sim = nullptr;
 }

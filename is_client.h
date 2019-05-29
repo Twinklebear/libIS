@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <future>
 #include <vector>
 #include <mpi.h>
 #include "is_common.h"
@@ -40,6 +41,11 @@ void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm);
  * the data.
  */
 std::vector<SimState> query();
+/* Asynchronously query our region in the next timestep from the simulation.
+ * This call will block until the simulation responds with
+ * the data.
+ */
+std::future<std::vector<SimState>> query_async();
 /* Disconnect the client from the simulation, closing the
  * intercommunicator and shutting down the library.
  */
