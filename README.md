@@ -1,4 +1,4 @@
-# libIS
+![libIS](libis-logo.svg)
 
 In situ data management layer for easily using in transit visualization.
 An example video of the our viewer can be seen on [YouTube](https://youtu.be/YUH55CvPmxg),
