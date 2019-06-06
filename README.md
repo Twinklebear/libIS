@@ -1,6 +1,6 @@
 ![libIS](libis-logo.svg)
 
-In situ data management layer for easily using in transit visualization.
+libIS is an in situ data management layer for easily using or prototyping in transit visualization.
 An example video of the our viewer can be seen on [YouTube](https://youtu.be/YUH55CvPmxg),
 the viewer code is available [here](https://github.com/ospray/ospray_senpai).
 This is the code for the core library described in the paper, see
