@@ -24,14 +24,13 @@ public:
 
 // TODO: Also allow supporting use of an intracomm
 class MPIInterComm : public InterComm {
-	MPI_Comm comm;
-	int remSize;
+	MPI_Comm comm = MPI_COMM_NULL;
+	int remSize = -1;
 	std::string mpiPortName;
 
 public:
-	MPIInterComm();
+	MPIInterComm() = default;
 	~MPIInterComm();
-	// TODO: Dtor to close the comm, close the port, etc.
 	static std::shared_ptr<MPIInterComm> listen(MPI_Comm ownComm);
 	static std::shared_ptr<MPIInterComm> connect(const std::string &mpiPort, MPI_Comm ownComm);
 	void accept(MPI_Comm ownComm) override;
@@ -44,20 +43,24 @@ public:
 	const std::string& portName() override; 
 };
 
-/*
 class SocketInterComm : public InterComm {
+	int listenSocket = -1;
+	int listenPort = 0;
 	std::vector<int> sockets;
 	std::string hostPortName;
 
 public:
+	SocketInterComm() = default;
+	~SocketInterComm();
 	static std::shared_ptr<SocketInterComm> listen(MPI_Comm ownComm);
 	static std::shared_ptr<SocketInterComm> connect(const std::string &host, MPI_Comm ownComm);
-	void accept(MPI_Comm ownComm);
+	void accept(MPI_Comm ownComm) override;
 	void send(void *data, size_t size, int rank) override;
-	void recv(std::vector<uint8_t> &data, size_t size, int rank) override;
+	void recv(void *data, size_t size, int rank) override;
+	bool probe(int rank) override;
+	int probeAll() override;
 
 	size_t remoteSize() override;
-	const std::string& portName() override;
+	const std::string& portName() override; 
 };
-*/
 

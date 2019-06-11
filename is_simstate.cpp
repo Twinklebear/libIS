@@ -87,7 +87,6 @@ Field Field::recv(std::shared_ptr<InterComm> &intercomm, const int rank) {
 
 	field.array = std::make_shared<OwnedArray>(fieldBytes, elemStride);
 	intercomm->recv(field.array->data(), field.array->numBytes(), rank);
-
 	return field;
 }
 

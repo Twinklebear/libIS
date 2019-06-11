@@ -210,7 +210,7 @@ std::vector<SimState> SimulationConnection::query() {
 	return regions;
 }
 void SimulationConnection::connectSim() {
-	intercomm = MPIInterComm::listen(ownComm);
+	intercomm = SocketInterComm::listen(ownComm);
 	myPortName = intercomm->portName();
 	sendCommand(CONNECT);
 	intercomm->accept(ownComm);

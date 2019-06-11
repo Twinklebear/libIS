@@ -34,6 +34,7 @@
 #include "is_sim.h"
 #include "is_command.h"
 #include "is_simstate.h"
+#include "is_buffering.h"
 
 namespace is {
 namespace sim {
@@ -106,7 +107,7 @@ ConnectionManager::~ConnectionManager() {
 	}
 }
 void ConnectionManager::listenForClient() {
-	const int listenSocket = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+	const int listenSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if (listenSocket < 0) {
 		throw std::runtime_error("Failed to create socket");
 	}
@@ -232,7 +233,23 @@ void ConnectionManager::connectClient() {
 		throw std::runtime_error("libIS_sim error: Attempt to connect client "
 				"while already connected");
 	}
-	intercomm = MPIInterComm::connect(clientPort, simComm);
+	if (simRank == 0) {
+		WriteBuffer writebuf;
+		writebuf << clientPort;
+		uint64_t bufsize = writebuf.size();
+		MPI_Bcast(&bufsize, sizeof(uint64_t), MPI_BYTE, 0, simComm);
+		MPI_Bcast(writebuf.data(), writebuf.size(), MPI_BYTE, 0, simComm);
+	} else {
+		uint64_t bufsize = 0;
+		MPI_Bcast(&bufsize, sizeof(uint64_t), MPI_BYTE, 0, simComm);
+		std::vector<char> buf(bufsize, 0);
+		MPI_Bcast(buf.data(), buf.size(), MPI_BYTE, 0, simComm);
+
+		ReadBuffer readbuf(buf);
+		readbuf >> clientPort;
+	}
+
+	intercomm = SocketInterComm::connect(clientPort, simComm);
 }
 void ConnectionManager::disconnectClient() {
 	intercomm = nullptr;
