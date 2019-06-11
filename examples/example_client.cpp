@@ -59,7 +59,7 @@ int main(int ac, char **av) {
 	auto regions = is::client::query();
 
 	for (int i = 0; i < world_size; ++i) {
-		if (rank == 0) {
+		if (rank == i) {
 			std::cout << "Rank " << rank << " has " << regions.size() << " regions\n";
 			// For each region we received, print out its data
 			for (const auto &r : regions) {
