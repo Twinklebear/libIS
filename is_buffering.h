@@ -45,7 +45,7 @@ class ReadBuffer : public Reader {
 	std::vector<char> buffer;
 
 public:
-	ReadBuffer(std::vector<char> buffer);
+	ReadBuffer(const std::vector<char> &buffer);
 	void read(char *data, const size_t nbytes) override;
 };
 

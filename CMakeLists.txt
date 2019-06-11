@@ -22,7 +22,7 @@ find_package(Threads REQUIRED)
 find_package(MPI REQUIRED)
 
 include_directories(${MPI_CXX_INCLUDE_PATH})
-add_library(is_sim SHARED is_sim.cpp is_common.cpp is_simstate.cpp is_buffering.cpp)
+add_library(is_sim SHARED is_sim.cpp is_common.cpp is_simstate.cpp is_buffering.cpp intercomm.cpp)
 target_link_libraries(is_sim PUBLIC ${MPI_CXX_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 target_include_directories(is_sim PUBLIC
 	$<BUILD_INTERFACE:${libIS_BINARY_DIR}>
@@ -32,7 +32,7 @@ target_include_directories(is_sim PUBLIC
 	$<INSTALL_INTERFACE:include>
 )
 
-add_library(is_client SHARED is_client.cpp is_common.cpp is_simstate.cpp is_buffering.cpp)
+add_library(is_client SHARED is_client.cpp is_common.cpp is_simstate.cpp is_buffering.cpp intercomm.cpp)
 target_link_libraries(is_client PUBLIC ${MPI_CXX_LIBRARIES})
 target_include_directories(is_client PUBLIC
 	$<BUILD_INTERFACE:${libIS_BINARY_DIR}>

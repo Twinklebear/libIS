@@ -39,7 +39,7 @@ Writer& operator<<(Writer &b, const std::string &s) {
 	return b;
 }
 
-ReadBuffer::ReadBuffer(std::vector<char> buffer)
+ReadBuffer::ReadBuffer(const std::vector<char> &buffer)
 	: begin(0), buffer(buffer)
 {}
 void ReadBuffer::read(char *out, const size_t nbytes) {
