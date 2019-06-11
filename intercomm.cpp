@@ -319,11 +319,27 @@ void SocketInterComm::accept(MPI_Comm ownComm) {
 }
 
 void SocketInterComm::send(void *data, size_t size, int rank) {
-	::send(sockets[rank], data, size, 0);
+	uint8_t *b = reinterpret_cast<uint8_t*>(data);
+	size_t nsent = 0;
+	while (nsent != size) {
+		int ret = ::send(sockets[rank], b + nsent, size - nsent, 0);
+		if (ret < 0) {
+			perror("send error");
+		}
+		nsent += ret;
+	}
 }
 
 void SocketInterComm::recv(void *data, size_t size, int rank) {
-	::recv(sockets[rank], data, size, 0);
+	uint8_t *b = reinterpret_cast<uint8_t*>(data);
+	size_t nrecv = 0;
+	while (nrecv != size) {
+		int ret = ::recv(sockets[rank], b + nrecv, size - nrecv, 0);
+		if (ret < 0) {
+			perror("recv error");
+		}
+		nrecv += ret;
+	}
 }
 
 bool SocketInterComm::probe(int rank) {

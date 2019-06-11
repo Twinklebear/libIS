@@ -248,8 +248,11 @@ void ConnectionManager::connectClient() {
 		ReadBuffer readbuf(buf);
 		readbuf >> clientPort;
 	}
-
+#if 1
 	intercomm = SocketInterComm::connect(clientPort, simComm);
+#else
+	intercomm = MPIInterComm::connect(clientPort, simComm);
+#endif
 }
 void ConnectionManager::disconnectClient() {
 	intercomm = nullptr;
