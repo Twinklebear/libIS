@@ -330,7 +330,8 @@ bool SocketInterComm::probe(int rank) {
 	pollfd p = {0};
 	p.fd = sockets[rank];
 	p.events = POLLIN;
-	return poll(&p, 1, -1) == 1;
+	int nready = poll(&p, 1, 0);
+	return nready == 1 && (p.revents & POLLIN);
 }
 
 int SocketInterComm::probeAll() {
@@ -341,7 +342,7 @@ int SocketInterComm::probeAll() {
 		p.events = POLLIN;
 		pollfds.push_back(p);
 	}
-	int nready = poll(pollfds.data(), pollfds.size(), -1);
+	int nready = poll(pollfds.data(), pollfds.size(), 0);
 	if (nready == 0) {
 		return -1;
 	}
