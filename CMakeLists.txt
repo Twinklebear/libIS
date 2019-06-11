@@ -55,7 +55,7 @@ install(TARGETS is_sim is_client EXPORT libISConfig
 	RUNTIME DESTINATION bin
 	INCLUDES DESTINATION include
 )
-install(FILES is_common.h is_client.h is_sim.h is_buffering.h is_simstate.h vec.h
+install(FILES is_common.h is_client.h is_sim.h is_buffering.h is_simstate.h vec.h intercomm.h
 	DESTINATION include/libIS
 )
 install(EXPORT libISConfig

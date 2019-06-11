@@ -28,6 +28,7 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <mpi.h>
+#include "intercomm.h"
 #include "is_client.h"
 #include "is_command.h"
 
@@ -46,7 +47,7 @@ static void check_logging_wanted() {
 
 struct SimulationConnection {
 	MPI_Comm simComm, ownComm;
-	int simSize;
+	std::shared_ptr<InterComm> intercomm = nullptr;
 	int rank, size, clientIntraCommRoot;
 	int simSocket, simPort;
 	std::string myPortName, simServer;
@@ -68,7 +69,6 @@ SimulationConnection::SimulationConnection(MPI_Comm com, const std::string &simS
 		const int port)
 	: simComm(MPI_COMM_NULL),
 	ownComm(MPI_COMM_NULL),
-	simSize(-1),
 	rank(-1),
 	size(-1),
 	clientIntraCommRoot(0),
@@ -88,7 +88,6 @@ SimulationConnection::SimulationConnection(MPI_Comm com, const std::string &simS
 SimulationConnection::SimulationConnection(MPI_Comm com, MPI_Comm sim)
 	: simComm(MPI_COMM_NULL),
 	ownComm(MPI_COMM_NULL),
-	simSize(-1),
 	rank(-1),
 	size(-1),
 	clientIntraCommRoot(0),
@@ -106,6 +105,8 @@ SimulationConnection::SimulationConnection(MPI_Comm com, MPI_Comm sim)
 	simComm = sim;
 	int isInterComm = 0;
 	MPI_Comm_test_inter(simComm, &isInterComm);
+	/*
+	   TODO
 	if (isInterComm) {
 		MPI_Comm_remote_size(simComm, &simSize);
 	} else {
@@ -115,6 +116,8 @@ SimulationConnection::SimulationConnection(MPI_Comm com, MPI_Comm sim)
 		}
 		MPI_Bcast(&clientIntraCommRoot, 1, MPI_INT, 0, ownComm);
 	}
+	*/
+	std::cout <<"WILL TODO UPDATE THIS!\n";
 }
 SimulationConnection::~SimulationConnection() {
 	disconnect();
@@ -123,7 +126,7 @@ SimulationConnection::~SimulationConnection() {
 std::vector<SimState> SimulationConnection::query() {
 	sendCommand(QUERY);
 
-	int correctedSimSize = simSize;
+	int correctedSimSize = intercomm->remoteSize();
 	// TODO: This is assuming the use existing comm mode is running in mpi
 	// multi-program launch mode.
 	if (clientIntraCommRoot != 0) {
@@ -157,12 +160,11 @@ std::vector<SimState> SimulationConnection::query() {
 
 		auto start_transfer = high_resolution_clock::now();
 		// Send over a ping the the simulation rank to have it send us the data
-		MPI_Send(&rank, 1, MPI_INT, regionId, 4503, simComm);
+		intercomm->send(&rank, sizeof(int), regionId);
 
 		// Recieve the header telling us about the simulation state
 		SimStateHeader header;
-		MPI_Recv(&header, sizeof(SimStateHeader), MPI_BYTE, regionId, 4503, simComm,
-				MPI_STATUS_IGNORE);
+		intercomm->recv(&header, sizeof(SimStateHeader), regionId);
 
 		r.world = header.world;
 		r.local = header.local;
@@ -171,13 +173,13 @@ std::vector<SimState> SimulationConnection::query() {
 		bytes_transferred += sizeof(SimStateHeader);
 
 		for (uint64_t f = 0; f < header.numFields; ++f) {
-			Field field = Field::recv(simComm, regionId, 4503);
+			Field field = Field::recv(intercomm, regionId);
 			bytes_transferred += field.array->numBytes();
 
 			r.fields[field.name] = field;
 		}
 		if (header.hasParticles) {
-			r.particles = Particles::recv(simComm, regionId, 4503);
+			r.particles = Particles::recv(intercomm, regionId);
 			bytes_transferred += r.particles.array->numBytes();
 		}
 
@@ -208,28 +210,17 @@ std::vector<SimState> SimulationConnection::query() {
 	return regions;
 }
 void SimulationConnection::connectSim() {
-	char mpiPortName[MPI_MAX_PORT_NAME + 1] = {0};
-	if (rank == 0) {
-		MPI_Open_port(MPI_INFO_NULL, mpiPortName);
-		myPortName = mpiPortName;
-
-		std::cout << "Sending connect cmd, got MPI port name from open '"
-			<< mpiPortName << "'" << std::endl;
-	}
-	MPI_Bcast(mpiPortName, MPI_MAX_PORT_NAME + 1, MPI_BYTE, 0, MPI_COMM_WORLD);
+	intercomm = MPIInterComm::listen(ownComm);
+	myPortName = intercomm->portName();
 	sendCommand(CONNECT);
-
-	MPI_Comm_accept(mpiPortName, MPI_INFO_NULL, 0, ownComm, &simComm);
-	MPI_Comm_set_errhandler(simComm, MPI_ERRORS_RETURN);
-
-	MPI_Comm_remote_size(simComm, &simSize);
+	intercomm->accept(ownComm);
 }
 void SimulationConnection::sendCommand(const COMMAND cmd) {
 	// Sending a command consists of:
 	// 1. sending our MPI port name to identify ourself (length, then string)
 	// 2. sending the command as an int
 	if (rank == 0) {
-		if (simComm == MPI_COMM_NULL) {
+		if (cmd == CONNECT) {
 			std::cout << "Sending command " << cmd << " over socket\n" << std::flush;
 			simSocket = socket(AF_INET, SOCK_STREAM, 0);
 			if (simSocket < 0) {
@@ -266,23 +257,15 @@ void SimulationConnection::sendCommand(const COMMAND cmd) {
 			}
 			close(simSocket);
 		} else {
-			const int cmdVal = cmd;
-			MPI_Send(&cmdVal, 1, MPI_INT, 0, 4505, simComm);
+			int cmdVal = cmd;
+			intercomm->send(&cmdVal, sizeof(int), 0);
 		}
 	}
 	MPI_Barrier(ownComm);
 }
 void SimulationConnection::disconnect() {
 	sendCommand(DISCONNECT);
-
-	int isInterComm = 0;
-	MPI_Comm_test_inter(simComm, &isInterComm);
-	if (isInterComm) {
-		MPI_Comm_disconnect(&simComm);
-	} else {
-		MPI_Barrier(simComm);
-		simComm = MPI_COMM_NULL;
-	}
+	intercomm = nullptr;
 }
 
 static std::unique_ptr<SimulationConnection> sim;

@@ -4,6 +4,10 @@
 
 MPIInterComm::MPIInterComm() : comm(MPI_COMM_NULL), remSize(0) {}
 
+MPIInterComm::~MPIInterComm() {
+	MPI_Comm_disconnect(&comm);
+}
+
 std::shared_ptr<MPIInterComm> MPIInterComm::listen(MPI_Comm ownComm) {
 	auto interComm = std::make_shared<MPIInterComm>();
 
@@ -41,17 +45,27 @@ void MPIInterComm::accept(MPI_Comm ownComm) {
 }
 
 void MPIInterComm::send(void *data, size_t size, int rank) {
-	MPI_Send(data, size, MPI_BYTE, rank, 4502, comm);
+	MPI_Send(data, size, MPI_BYTE, rank, 0, comm);
 }
 
-void MPIInterComm::recv(std::vector<uint8_t> &data, size_t size, int rank) {
-	MPI_Recv(data.data(), size, MPI_BYTE, rank, 4502, comm, MPI_STATUS_IGNORE);
+void MPIInterComm::recv(void *data, size_t size, int rank) {
+	MPI_Recv(data, size, MPI_BYTE, rank, 0, comm, MPI_STATUS_IGNORE);
 }
 
 bool MPIInterComm::probe(int rank) {
 	int flag = 0;
-	MPI_Iprobe(rank, 4502, comm, &flag, MPI_STATUS_IGNORE);
+	MPI_Iprobe(rank, 0, comm, &flag, MPI_STATUS_IGNORE);
 	return flag != 0;
+}
+
+int MPIInterComm::probeAll() {
+	int flag = 0;
+	MPI_Status status;
+	MPI_Iprobe(MPI_ANY_SOURCE, 0, comm, &flag, &status);
+	if (flag != 0) {
+		return status.MPI_SOURCE;
+	}
+	return -1;
 }
 
 size_t MPIInterComm::remoteSize() {

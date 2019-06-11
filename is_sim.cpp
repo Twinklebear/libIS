@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <mpi.h>
+#include "intercomm.h"
 #include "is_sim.h"
 #include "is_command.h"
 #include "is_simstate.h"
@@ -41,9 +42,10 @@ static uint16_t LISTEN_PORT = 29374;
 
 struct ConnectionManager {
 	MPI_Comm simComm, clientComm;
+	std::shared_ptr<InterComm> intercomm = nullptr;
 	std::string clientPort;
 	int clientCommand, incomingCommand;
-	int simSize, simRank, clientSize;
+	int simSize, simRank;
 
 	std::mutex mutex;
 	bool newQuery;
@@ -66,7 +68,7 @@ private:
 
 ConnectionManager::ConnectionManager(MPI_Comm sim) : simComm(MPI_COMM_NULL),
 	clientComm(MPI_COMM_NULL), clientCommand(INVALID), simSize(-1), simRank(-1),
-	clientSize(-1), newQuery(false), exitThread(false), newCommand(MPI_REQUEST_NULL)
+	newQuery(false), exitThread(false), newCommand(MPI_REQUEST_NULL)
 {
 	MPI_Comm_dup(sim, &simComm);
 	MPI_Comm_size(simComm, &simSize);
@@ -77,7 +79,7 @@ ConnectionManager::ConnectionManager(MPI_Comm sim) : simComm(MPI_COMM_NULL),
 }
 ConnectionManager::ConnectionManager(MPI_Comm sim, MPI_Comm client)
 	: simComm(MPI_COMM_NULL), clientComm(MPI_COMM_NULL), clientCommand(INVALID),
-	simSize(-1), simRank(-1), clientSize(-1), newQuery(false), exitThread(true),
+	simSize(-1), simRank(-1), newQuery(false), exitThread(true),
 	newCommand(MPI_REQUEST_NULL)
 {
 	MPI_Comm_dup(sim, &simComm);
@@ -87,11 +89,14 @@ ConnectionManager::ConnectionManager(MPI_Comm sim, MPI_Comm client)
 	clientComm = client;
 	int isInterComm = 0;
 	MPI_Comm_test_inter(clientComm, &isInterComm);
+	/* TODO
 	if (isInterComm) {
 		MPI_Comm_remote_size(clientComm, &clientSize);
 	} else {
 		MPI_Comm_size(clientComm, &clientSize);
 	}
+	*/
+	std::cout << "WILL TODO UPDATE\n";
 }
 ConnectionManager::~ConnectionManager() {
 	MPI_Comm_free(&simComm);
@@ -177,7 +182,7 @@ void ConnectionManager::listenForClient() {
 		close(accepted);
 
 		std::lock_guard<std::mutex> lock(mutex);
-		if (clientComm == MPI_COMM_NULL) {
+		if (intercomm == nullptr) {
 			clientPort = portName;
 		}
 		clientCommand = cmd;
@@ -193,16 +198,11 @@ void ConnectionManager::process(const SimState *state) {
 
 	int haveQuery = newQuery ? 1 : 0;
 	// Asynchronously check for client commands if we've got a client connected
-	if (!haveQuery && simRank == 0 && clientComm != MPI_COMM_NULL) {
-		if (newCommand != MPI_REQUEST_NULL) {
-			MPI_Test(&newCommand, &haveQuery, MPI_STATUS_IGNORE);
-			if (haveQuery) {
-				clientCommand = incomingCommand;
-			}
-		}
-		if (newCommand == MPI_REQUEST_NULL && clientCommand != DISCONNECT) {
-			MPI_Irecv(&incomingCommand, 1, MPI_INT, MPI_ANY_SOURCE,
-					4505, clientComm, &newCommand);
+	// TODO: Re-add intracomm support
+	if (!haveQuery && simRank == 0 && intercomm != nullptr) {
+		haveQuery = intercomm->probe(0) ? 1 : 0;
+		if (haveQuery) {
+			intercomm->recv(&clientCommand, sizeof(clientCommand), 0);
 		}
 	}
 
@@ -228,16 +228,24 @@ void ConnectionManager::process(const SimState *state) {
 	newQuery = false;
 }
 void ConnectionManager::connectClient() {
-	if (clientComm != MPI_COMM_NULL) {
+	if (intercomm != nullptr) {
 		throw std::runtime_error("libIS_sim error: Attempt to connect client "
 				"while already connected");
 	}
-	MPI_Comm_connect(const_cast<char*>(clientPort.c_str()), MPI_INFO_NULL, 0,
-			simComm, &clientComm);
-	MPI_Comm_set_errhandler(clientComm, MPI_ERRORS_RETURN);
-	MPI_Comm_remote_size(clientComm, &clientSize);
+	intercomm = MPIInterComm::connect(clientPort, simComm);
 }
 void ConnectionManager::disconnectClient() {
+	intercomm = nullptr;
+
+	// Watch for new clients again
+	if (simRank == 0) {
+		if (listenerThread.joinable()) {
+			listenerThread.join();
+			listenerThread = std::thread([&](){ listenForClient(); });
+		}
+	}
+	/*
+	 * REMAINING TODO for handling intracomm now
 	if (clientComm != MPI_COMM_NULL) {
 		int isInterComm = 0;
 		MPI_Comm_test_inter(clientComm, &isInterComm);
@@ -255,26 +263,29 @@ void ConnectionManager::disconnectClient() {
 			clientComm = MPI_COMM_NULL;
 		}
 	}
+	*/
 }
 void ConnectionManager::handleQuery(const SimState *state) {
 	// Wait for the client who will recieve our data to contact us
-	MPI_Status myClient;
+	int myClient = -1;
+	do {
+		myClient = intercomm->probeAll();
+	} while (myClient == -1);
+
+	// Recv the int ping the client sent us
 	int clientPing = 0;
-	MPI_Recv(&clientPing, 1, MPI_INT, MPI_ANY_SOURCE, 4503,
-			clientComm, &myClient);
+	intercomm->recv(&clientPing, sizeof(clientPing), myClient);
 
 	SimStateHeader header(state);
 	// Send the world, local and ghost bounds, and the simRank
-	MPI_Send(&header, sizeof(SimStateHeader), MPI_BYTE, myClient.MPI_SOURCE,
-			4503, clientComm);
+	intercomm->send(&header, sizeof(SimStateHeader), myClient);
 
 	// TODO: Have the client tell us what it wants instead of sending over everything
 	for (const auto &field : state->fields) {
-		std::cout << "Sent field: " << field.second.name << std::endl;
-		field.second.send(clientComm, myClient.MPI_SOURCE, 4503);
+		field.second.send(intercomm, myClient);
 	}
 	if (header.hasParticles) {
-		state->particles.send(clientComm, myClient.MPI_SOURCE, 4503);
+		state->particles.send(intercomm, myClient);
 	}
 }
 

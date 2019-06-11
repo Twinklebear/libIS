@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include "intercomm.h"
 #include "is_buffering.h"
 #include "is_simstate.h"
 
@@ -61,21 +62,21 @@ Field::Field(const std::string &name, libISDType type, const uint64_t dims[3],
 		std::shared_ptr<Array> &array)
 	: name(name), dataType(type), dims({dims[0], dims[1], dims[2]}), array(array)
 {}
-void Field::send(MPI_Comm comm, const int rank, const int tag) const {
+void Field::send(std::shared_ptr<InterComm> &intercomm, const int rank) const {
 	WriteBuffer header;
 	header << name << (uint32_t)dataType << dims
 		<< array->numBytes() << array->stride();
-	MPI_Send(header.data(), header.size(), MPI_BYTE, rank, tag, comm);
-	MPI_Send(array->data(), array->numBytes(), MPI_BYTE, rank, tag, comm);
+	uint64_t headerSize = header.size();
+	intercomm->send(&headerSize, sizeof(uint64_t), rank);
+	intercomm->send(header.data(), header.size(), rank);
+	intercomm->send(array->data(), array->numBytes(), rank);
 }
-Field Field::recv(MPI_Comm comm, const int rank, const int tag) {
-	MPI_Status status;
-	MPI_Probe(rank, tag, comm, &status);
-	int headerSize = 0;
-	MPI_Get_count(&status, MPI_BYTE, &headerSize);
+Field Field::recv(std::shared_ptr<InterComm> &intercomm, const int rank) {
+	uint64_t headerSize = 0;
+	intercomm->recv(&headerSize, sizeof(uint64_t), rank);
 
 	std::vector<char> headerBuf(headerSize, 0);
-	MPI_Recv(headerBuf.data(), headerSize, MPI_BYTE, rank, tag, comm, MPI_STATUS_IGNORE);
+	intercomm->recv(headerBuf.data(), headerBuf.size(), rank);
 	ReadBuffer header(headerBuf);
 
 	Field field;
@@ -85,8 +86,7 @@ Field Field::recv(MPI_Comm comm, const int rank, const int tag) {
 	field.dataType = (libISDType)dtype;
 
 	field.array = std::make_shared<OwnedArray>(fieldBytes, elemStride);
-	MPI_Recv(field.array->data(), field.array->numBytes(), MPI_BYTE,
-			rank, tag, comm, MPI_STATUS_IGNORE);
+	intercomm->recv(field.array->data(), field.array->numBytes(), rank);
 
 	return field;
 }
@@ -96,17 +96,17 @@ Particles::Particles(uint64_t numParticles, uint64_t numGhost,
 		std::shared_ptr<Array> &array)
 	: numParticles(numParticles), numGhost(numGhost), array(array)
 {}
-void Particles::send(MPI_Comm comm, const int rank, const int tag) const {
+void Particles::send(std::shared_ptr<InterComm> &intercomm, const int rank) const {
 	WriteBuffer header;
 	header << numParticles << numGhost << array->numBytes() << array->stride();
 	const uint64_t headerSize = 4 * sizeof(uint64_t);
-	MPI_Send(header.data(), header.size(), MPI_BYTE, rank, tag, comm);
-	MPI_Send(array->data(), array->numBytes(), MPI_BYTE, rank, tag, comm);
+	intercomm->send(header.data(), header.size(), rank);
+	intercomm->send(array->data(), array->numBytes(), rank);
 }
-Particles Particles::recv(MPI_Comm comm, const int rank, const int tag) {
+Particles Particles::recv(std::shared_ptr<InterComm> &intercomm, const int rank) {
 	const uint64_t headerSize = 4 * sizeof(uint64_t);
 	std::vector<char> headerBuf(headerSize, 0);
-	MPI_Recv(headerBuf.data(), headerSize, MPI_BYTE, rank, tag, comm, MPI_STATUS_IGNORE);
+	intercomm->recv(headerBuf.data(), headerBuf.size(), rank);
 	ReadBuffer header(headerBuf);
 
 	Particles particles;
@@ -114,8 +114,7 @@ Particles Particles::recv(MPI_Comm comm, const int rank, const int tag) {
 	header >> particles.numParticles >> particles.numGhost >> particleBytes >> elemStride;
 
 	particles.array = std::make_shared<OwnedArray>(particleBytes, elemStride);
-	MPI_Recv(particles.array->data(), particles.array->numBytes(), MPI_BYTE,
-			rank, tag, comm, MPI_STATUS_IGNORE);
+	intercomm->recv(particles.array->data(), particles.array->size(), rank);
 	return particles;
 }
 
