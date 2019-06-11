@@ -55,37 +55,39 @@ int main(int ac, char **av) {
 	// Connect to the simulation
 	is::client::connect(server, port, MPI_COMM_WORLD);
 
-	// Query the data from the simulation
-	auto regions = is::client::query();
+	for (int j = 0; j < 10; ++j) {
+		// Query the data from the simulation
+		auto regions = is::client::query();
 
-	for (int i = 0; i < world_size; ++i) {
-		if (rank == i) {
-			std::cout << "Rank " << rank << " has " << regions.size() << " regions\n";
-			// For each region we received, print out its data
-			for (const auto &r : regions) {
-				std::cout << "region has " << r.particles.numParticles
-					<< " particles and " << r.fields.size() << " fields\n";
-				std::cout << "Fields: {";
-				for (const auto &f : r.fields) {
-					std::cout << "(" << f.first << ", ";
-					if (f.second.dataType == UINT8) {
-						std::cout << "uint8";
-					} else if (f.second.dataType == FLOAT) {
-						std::cout << "float";
-					} else if (f.second.dataType == DOUBLE) {
-						std::cout << "double";
-					} else {
-						std::cout << "INVALID!";
+		for (int i = 0; i < world_size; ++i) {
+			if (rank == i) {
+				std::cout << "Rank " << rank << " has " << regions.size() << " regions\n";
+				// For each region we received, print out its data
+				for (const auto &r : regions) {
+					std::cout << "region has " << r.particles.numParticles
+						<< " particles and " << r.fields.size() << " fields\n";
+					std::cout << "Fields: {";
+					for (const auto &f : r.fields) {
+						std::cout << "(" << f.first << ", ";
+						if (f.second.dataType == UINT8) {
+							std::cout << "uint8";
+						} else if (f.second.dataType == FLOAT) {
+							std::cout << "float";
+						} else if (f.second.dataType == DOUBLE) {
+							std::cout << "double";
+						} else {
+							std::cout << "INVALID!";
+						}
+						std::cout << ", [" << f.second.dims[0] << ", "
+							<< f.second.dims[1] << ", " << f.second.dims[2]
+							<< "]), ";
 					}
-					std::cout << ", [" << f.second.dims[0] << ", "
-						<< f.second.dims[1] << ", " << f.second.dims[2]
-						<< "]), ";
+					std::cout << "}\n";
 				}
-				std::cout << "}\n";
+				std::cout << "--------" << std::endl;
 			}
-			std::cout << "--------" << std::endl;
+			MPI_Barrier(MPI_COMM_WORLD);
 		}
-		MPI_Barrier(MPI_COMM_WORLD);
 	}
 
 	is::client::disconnect();

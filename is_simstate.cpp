@@ -76,7 +76,7 @@ Field Field::recv(std::shared_ptr<InterComm> &intercomm, const int rank) {
 	intercomm->recv(&headerSize, sizeof(uint64_t), rank);
 
 	std::vector<char> headerBuf(headerSize, 0);
-	intercomm->recv(headerBuf.data(), headerBuf.size(), rank);
+	intercomm->recv(headerBuf.data(), headerSize, rank);
 	ReadBuffer header(headerBuf);
 
 	Field field;
@@ -113,7 +113,7 @@ Particles Particles::recv(std::shared_ptr<InterComm> &intercomm, const int rank)
 	header >> particles.numParticles >> particles.numGhost >> particleBytes >> elemStride;
 
 	particles.array = std::make_shared<OwnedArray>(particleBytes, elemStride);
-	intercomm->recv(particles.array->data(), particles.array->size(), rank);
+	intercomm->recv(particles.array->data(), particles.array->numBytes(), rank);
 	return particles;
 }
 
