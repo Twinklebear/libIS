@@ -16,10 +16,8 @@ bool mpi_open_port_available() {
 	char mpiPortName[MPI_MAX_PORT_NAME + 1] = {0};
 	int ret = MPI_Open_port(MPI_INFO_NULL, mpiPortName);
 	if (ret != 0) {
-		std::cout << "open port is not available\n";
 		return false;
 	}
-	std::cout << "open port is available\n";
 	MPI_Close_port(mpiPortName);
 	MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
 	return true;
