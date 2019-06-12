@@ -8,6 +8,9 @@
 
 class InterComm {
 public:
+	static std::shared_ptr<InterComm> listen(MPI_Comm ownComm);
+	static std::shared_ptr<InterComm> connect(const std::string &host, MPI_Comm ownComm);
+
 	virtual void accept(MPI_Comm ownComm) = 0;
 	// Send some data to a rank on the other end
 	virtual void send(void *data, size_t size, int rank) = 0;

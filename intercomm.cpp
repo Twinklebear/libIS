@@ -10,6 +10,34 @@
 #include "is_buffering.h"
 #include "intercomm.h"
 
+bool mpi_open_port_available() {
+	// TODO: Maybe get the errhandler and restore it after instead of setting back to fatal?
+	MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+	char mpiPortName[MPI_MAX_PORT_NAME + 1] = {0};
+	int ret = MPI_Open_port(MPI_INFO_NULL, mpiPortName);
+	if (ret != 0) {
+		std::cout << "open port is not available\n";
+		return false;
+	}
+	std::cout << "open port is available\n";
+	MPI_Close_port(mpiPortName);
+	MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
+	return true;
+}
+
+std::shared_ptr<InterComm> InterComm::listen(MPI_Comm ownComm) {
+	if (mpi_open_port_available()) {
+		return MPIInterComm::listen(ownComm);
+	}
+	return SocketInterComm::listen(ownComm);
+}
+std::shared_ptr<InterComm> InterComm::connect(const std::string &host, MPI_Comm ownComm) {
+	if (mpi_open_port_available()) {
+		return MPIInterComm::connect(host, ownComm);
+	}
+	return SocketInterComm::connect(host, ownComm);
+}
+
 MPIInterComm::~MPIInterComm() {
 	MPI_Comm_disconnect(&comm);
 }
