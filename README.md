@@ -106,6 +106,10 @@ connect to a simulation with this approach.
 	running on all ranks in world.
 - `port`: the port that libIS should listen for client connections on
 
+Note: this is temporarily broken, though may not be needed since the socket fallback
+layer can provide connect/disconnect functionality even when `MPI_Open_port` is not
+available. If this API is needed please revert to commit `dcc46d9` for now.
+
 ```c
 void libISInitWithExisting(MPI_Comm simWorld, MPI_Comm clientComm);
 ```
