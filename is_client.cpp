@@ -18,9 +18,12 @@
 #include <fstream>
 #include <thread>
 #include <chrono>
+#include <numeric>
+#include <algorithm>
 #include <limits>
 #include <iostream>
 #include <cstring>
+#include <queue>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
@@ -45,6 +48,22 @@ static void check_logging_wanted() {
 	}
 }
 
+struct RankLoad {
+	int rank = -1;
+	float load = 0.f;
+
+	RankLoad() = default;
+	RankLoad(int rank, float load) : rank(rank), load(load) {}
+};
+
+bool operator<(const RankLoad &a, const RankLoad &b) {
+	return a.load < b.load;
+}
+
+bool operator>(const RankLoad &a, const RankLoad &b) {
+	return a.load > b.load;
+}
+
 struct SimulationConnection {
 	MPI_Comm simComm, ownComm;
 	std::shared_ptr<InterComm> intercomm = nullptr;
@@ -58,7 +77,7 @@ struct SimulationConnection {
 			const int port);
 	SimulationConnection(MPI_Comm com, MPI_Comm sim);
 	~SimulationConnection();
-	std::vector<SimState> query();
+	std::vector<SimState> query(float load = 1.f);
 
 private:
 	void connectSim();
@@ -123,7 +142,7 @@ SimulationConnection::~SimulationConnection() {
 	disconnect();
 	MPI_Comm_free(&ownComm);
 }
-std::vector<SimState> SimulationConnection::query() {
+std::vector<SimState> SimulationConnection::query(float load) {
 	sendCommand(QUERY);
 
 	int correctedSimSize = intercomm->remoteSize();
@@ -132,17 +151,53 @@ std::vector<SimState> SimulationConnection::query() {
 	if (clientIntraCommRoot != 0) {
 		correctedSimSize = clientIntraCommRoot;
 	}
-	const int simsPerClient = correctedSimSize / size;
-	int mySims = simsPerClient;
-	int extraOffset = 0;
-	if (correctedSimSize % size != 0) {
-		extraOffset = std::min(rank, (correctedSimSize % size));
-		if ((correctedSimSize % size) - rank > 0) {
-			mySims += 1;
+
+	// Determine the total "load" to compute the relative load of each rank
+	// TODO: Not sure if communication/parallelism is better with one rank getting
+	// all the loads and sending out the assignments, or an all-to-all step of sending
+	// the loads to all ranks and then each can compute the assignments and use that
+	// to find its own work.
+	std::vector<float> rankLoads(size, 0.f);
+	MPI_Allgather(&load, 1, MPI_FLOAT, rankLoads.data(), size, MPI_FLOAT, MPI_COMM_WORLD);
+
+	const float totalLoad = std::accumulate(rankLoads.begin(), rankLoads.end(), 0.f);
+	std::vector<int> clientsPerRank(size, 0);
+
+	// Since we floor the assignments, we may not initially assign all simulation ranks 
+	float minLoad = *std::min_element(rankLoads.begin(), rankLoads.end());
+	if (minLoad == 0.f) {
+		minLoad = std::numeric_limits<float>::infinity();
+		for (const auto &f : rankLoads) {
+			if (f > 0.f) {
+				minLoad = std::min(f, minLoad);
+			}
 		}
+		std::cout << "got a minLoad == 0.f, updated to " << minLoad << "\n";
 	}
 
-	// TODO: Logging should dump to individual files for each rank
+	std::priority_queue<RankLoad, std::vector<RankLoad>, std::greater<RankLoad>> assignQueue;
+	for (size_t i = 0; i < rankLoads.size(); ++i) {
+		assignQueue.push(RankLoad(i, rankLoads[i]));
+	}
+
+	// Find the most underloaded rank from the previous task run and assign it a task
+	for (int toAssign = size; toAssign > 0; --toAssign) {
+		RankLoad r = assignQueue.top();
+		assignQueue.pop();
+
+		clientsPerRank[r.rank]++;
+		--toAssign;
+
+		// Count the work of a single "element" as the minimum load reported on any rank
+		r.load += minLoad;
+		assignQueue.push(r);
+	}
+
+	const int simOffset = std::accumulate(clientsPerRank.begin(), clientsPerRank.begin() + rank, 0);
+
+	std::cout << "rank: " << rank << " with relativeLoad " << load / totalLoad
+		<< " will take " << clientsPerRank[rank] << " sims, starting at offset "
+		<< simOffset << "\n";
 
 	// Currently we assume an M:N mapping of sim ranks to client ranks,
 	// where M >= N. As such each simulation's data is assigned to the
@@ -150,12 +205,12 @@ std::vector<SimState> SimulationConnection::query() {
 	// from sim rank 0, and so on. In the case of M > N each client will
 	// recv M/N regions, merging these regions is left as an optional operation
 	// for the user.
-	std::vector<SimState> regions(mySims, SimState());
+	std::vector<SimState> regions(clientsPerRank[rank], SimState());
 	using namespace std::chrono;
 	size_t bytes_transferred = 0;
 	size_t transfer_time = 0;
 	for (size_t i = 0; i < regions.size(); ++i) {
-		const int regionId = i + simsPerClient * rank + extraOffset;
+		const int regionId = i + simOffset;
 		SimState &r = regions[i];
 
 		auto start_transfer = high_resolution_clock::now();
@@ -194,7 +249,7 @@ std::vector<SimState> SimulationConnection::query() {
 				results.data(), 2 * sizeof(size_t), MPI_BYTE, 0, ownComm);
 		if (rank == 0) {
 			*log << "#------#\nOn " << size << " nodes, with "
-				<< simsPerClient << " sims/client\nlibIS transfer times: [ ";
+				<< clientsPerRank[rank] << " sims\nlibIS transfer times: [ ";
 			for (size_t i = 0; i < results.size(); i += 2) {
 				*log << results[i] << "ns ";
 			}
@@ -276,13 +331,13 @@ void connect(const std::string &simServer, const int port, MPI_Comm ownComm) {
 void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm) {
 	sim = std::unique_ptr<SimulationConnection>(new SimulationConnection(ownComm, simComm));
 }
-std::vector<SimState> query() {
-	return sim->query();
+std::vector<SimState> query(float load) {
+	return sim->query(load);
 }
-std::future<std::vector<SimState>> query_async() {
+std::future<std::vector<SimState>> queryAsync(float load) {
 	std::future<std::vector<SimState>> future =
-		std::async(std::launch::async, [](){
-			return query();
+		std::async(std::launch::async, [=](){
+			return query(load);
 		});
 	return future;
 }
