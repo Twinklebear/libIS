@@ -158,10 +158,9 @@ std::vector<SimState> SimulationConnection::query(float load) {
 	// the loads to all ranks and then each can compute the assignments and use that
 	// to find its own work.
 	std::vector<float> rankLoads(size, 0.f);
-	MPI_Allgather(&load, 1, MPI_FLOAT, rankLoads.data(), size, MPI_FLOAT, MPI_COMM_WORLD);
+	MPI_Allgather(&load, 1, MPI_FLOAT, rankLoads.data(), 1, MPI_FLOAT, MPI_COMM_WORLD);
 
 	const float totalLoad = std::accumulate(rankLoads.begin(), rankLoads.end(), 0.f);
-	std::vector<int> clientsPerRank(size, 0);
 
 	// Since we floor the assignments, we may not initially assign all simulation ranks 
 	float minLoad = *std::min_element(rankLoads.begin(), rankLoads.end());
@@ -172,7 +171,6 @@ std::vector<SimState> SimulationConnection::query(float load) {
 				minLoad = std::min(f, minLoad);
 			}
 		}
-		std::cout << "got a minLoad == 0.f, updated to " << minLoad << "\n";
 	}
 
 	std::priority_queue<RankLoad, std::vector<RankLoad>, std::greater<RankLoad>> assignQueue;
@@ -181,12 +179,12 @@ std::vector<SimState> SimulationConnection::query(float load) {
 	}
 
 	// Find the most underloaded rank from the previous task run and assign it a task
-	for (int toAssign = size; toAssign > 0; --toAssign) {
+	std::vector<int> clientsPerRank(size, 1);
+	for (int i = 0; i < correctedSimSize - clientsPerRank.size(); ++i) {
 		RankLoad r = assignQueue.top();
 		assignQueue.pop();
 
 		clientsPerRank[r.rank]++;
-		--toAssign;
 
 		// Count the work of a single "element" as the minimum load reported on any rank
 		r.load += minLoad;

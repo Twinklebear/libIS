@@ -57,7 +57,8 @@ int main(int ac, char **av) {
 
 	for (int j = 0; j < 10; ++j) {
 		// Query the data from the simulation
-		auto regions = is::client::query();
+		// Some fake load balancing based on rank
+		auto regions = is::client::query(rank == 0 ? 1.f : 4.f);
 
 		for (int i = 0; i < world_size; ++i) {
 			if (rank == i) {
