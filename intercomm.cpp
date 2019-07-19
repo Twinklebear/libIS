@@ -11,6 +11,9 @@
 #include "intercomm.h"
 
 bool mpi_open_port_available() {
+#ifdef LIBIS_FORCE_SOCKET_INTERCOMM
+	return false;
+#else
 	// TODO: Maybe get the errhandler and restore it after instead of setting back to fatal?
 	MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
 	char mpiPortName[MPI_MAX_PORT_NAME + 1] = {0};
@@ -21,6 +24,7 @@ bool mpi_open_port_available() {
 	MPI_Close_port(mpiPortName);
 	MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
 	return true;
+#endif
 }
 
 std::shared_ptr<InterComm> InterComm::listen(MPI_Comm ownComm) {
@@ -91,11 +95,12 @@ bool MPIInterComm::probe(int rank) {
 }
 
 int MPIInterComm::probeAll() {
-	int flag = 0;
-	MPI_Status status;
-	MPI_Iprobe(MPI_ANY_SOURCE, 0, comm, &flag, &status);
-	if (flag != 0) {
-		return status.MPI_SOURCE;
+	// Note: explicitly not using Iprobe w/ MPI_ANY_SOURCE b/c it segfaults
+	// on Intel MPI?
+	for (int i = 0; i < remSize; ++i) {
+		if (probe(i)) {
+			return i;
+		}
 	}
 	return -1;
 }
