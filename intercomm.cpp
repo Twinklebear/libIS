@@ -95,11 +95,12 @@ bool MPIInterComm::probe(int rank) {
 }
 
 int MPIInterComm::probeAll() {
-	int flag = 0;
-	MPI_Status status;
-	MPI_Iprobe(MPI_ANY_SOURCE, 0, comm, &flag, &status);
-	if (flag != 0) {
-		return status.MPI_SOURCE;
+	// Note: explicitly not using Iprobe w/ MPI_ANY_SOURCE b/c it segfaults
+	// on Intel MPI?
+	for (int i = 0; i < remSize; ++i) {
+		if (probe(i)) {
+			return i;
+		}
 	}
 	return -1;
 }

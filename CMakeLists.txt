@@ -35,11 +35,6 @@ target_include_directories(is_sim PUBLIC
 	$<INSTALL_INTERFACE:include>
 )
 
-if (LIBIS_FORCE_SOCKET_INTERCOMM)
-	target_compile_definitions(is_sim PUBLIC
-		LIBIS_FORCE_SOCKET_INTERCOMM)
-endif()
-
 add_library(is_client SHARED is_client.cpp is_common.cpp is_simstate.cpp is_buffering.cpp intercomm.cpp)
 target_link_libraries(is_client PUBLIC ${MPI_CXX_LIBRARIES})
 target_include_directories(is_client PUBLIC
@@ -50,8 +45,8 @@ target_include_directories(is_client PUBLIC
 )
 
 if (LIBIS_FORCE_SOCKET_INTERCOMM)
-	target_compile_definitions(is_client PUBLIC
-		LIBIS_FORCE_SOCKET_INTERCOMM)
+	target_compile_definitions(is_sim PUBLIC LIBIS_FORCE_SOCKET_INTERCOMM)
+	target_compile_definitions(is_client PUBLIC LIBIS_FORCE_SOCKET_INTERCOMM)
 endif()
 
 add_executable(grid_util grid_util.cpp)
