@@ -76,6 +76,7 @@ void MPIInterComm::accept(MPI_Comm ownComm) {
 	}
 	MPI_Comm_accept(mpiPortName.c_str(), MPI_INFO_NULL, 0, ownComm, &comm);
 	MPI_Comm_set_errhandler(comm, MPI_ERRORS_RETURN);
+	MPI_Close_port(mpiPortName.c_str());
 
 	MPI_Comm_remote_size(comm, &remSize);
 }
