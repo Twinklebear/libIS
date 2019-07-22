@@ -49,8 +49,6 @@ if (LIBIS_FORCE_SOCKET_INTERCOMM)
 	target_compile_definitions(is_client PUBLIC LIBIS_FORCE_SOCKET_INTERCOMM)
 endif()
 
-add_executable(grid_util grid_util.cpp)
-
 set_target_properties(is_sim is_client
 	PROPERTIES
 	CXX_STANDARD 11
