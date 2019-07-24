@@ -107,7 +107,7 @@ ConnectionManager::~ConnectionManager() {
 	}
 }
 void ConnectionManager::listenForClient() {
-	const int listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+	const int listenSocket = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 	if (listenSocket < 0) {
 		throw std::runtime_error("Failed to create socket");
 	}
@@ -143,7 +143,7 @@ void ConnectionManager::listenForClient() {
 			accepted = accept(listenSocket, (struct sockaddr*)&addr, &len);
 			if (accepted < 0) {
 				if (errno == EWOULDBLOCK || errno == EAGAIN) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(250));
+					std::this_thread::sleep_for(std::chrono::milliseconds(100));
 				} else {
 					throw std::runtime_error("Failed to accept connection");
 				}
