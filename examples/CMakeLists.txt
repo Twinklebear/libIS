@@ -31,19 +31,40 @@ target_include_directories(example_client PRIVATE
 	$<BUILD_INTERFACE:${MPI_CXX_INCLUDE_PATH}>)
 
 if (BUILD_LAMMPS_EXAMPLE)
-	if (NOT LAMMPS_DIR)
+	add_executable(lammps_example lammps_example.cpp)
+
+	find_path(LAMMPS_INCLUDE_DIR lammps.h
+		PATHS ${LAMMPS_DIR})
+
+	find_library(LAMMPS_LIBRARY lammps_omp
+		PATHS ${LAMMPS_DIR})
+
+	if (NOT LAMMPS_LIBRARY)
+		message(WARNING "OpenMP LAMMPS library not found, searching for MPI LAMMPS")
+		find_library(LAMMPS_LIBRARY lammps_mpi
+			HINTS ${LAMMPS_DIR})
+	else()
+		find_package(OpenMP REQUIRED)
+
+		target_link_libraries(lammps_example PRIVATE
+			OpenMP::OpenMP_CXX)
+	endif()
+
+	if (NOT LAMMPS_INCLUDE_DIR)
 		message(FATAL_ERROR "To build LAMMPS driver you must set -DLAMMPS_DIR=<root of lammps dir>")
 	endif()
 
-	include_directories(${LAMMPS_DIR}/src)
+	if (NOT LAMMPS_LIBRARY)
+		message(FATAL_ERROR "To build LAMMPS driver you must have lammps built with MPI or OMP")
+	endif()
 
-	add_executable(lammps_example lammps_example.cpp)
 	target_link_libraries(lammps_example PRIVATE
 		is_sim
 		${MPI_CXX_LIBRARIES}
-		${LAMMPS_DIR}/src/liblammps_mpi.a)
+		${LAMMPS_LIBRARY})
+
 	target_include_directories(lammps_example PRIVATE
 		$<BUILD_INTERFACE:${MPI_CXX_INCLUDE_PATH}>
-		$<BUILD_INTERFACE:${LAMMPS_DIR}/src>)
+		$<BUILD_INTERFACE:${LAMMPS_INCLUDE_DIR}>)
 endif()
 
