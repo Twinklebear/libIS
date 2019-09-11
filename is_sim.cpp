@@ -133,10 +133,7 @@ namespace sim {
             connectClient();
         }
 
-        if (simRank == 0) {
-            std::cout << "We have final client query, command: " << clientCommand
-                      << ", telling rank to quit\n"
-                      << std::flush;
+        if (simRank == 0 && intercomm != nullptr) {
             int quit = 1;
             intercomm->send(&quit, sizeof(int), 0);
         }
