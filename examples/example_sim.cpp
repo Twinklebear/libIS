@@ -15,10 +15,10 @@
 // ======================================================================== //
 
 #include <chrono>
-#include <iostream>
 #include <cstring>
-#include <thread>
+#include <iostream>
 #include <random>
+#include <thread>
 #include <vector>
 #include <mpi.h>
 #include "libIS/is_sim.h"
@@ -28,11 +28,11 @@
  * of particles on each rank and "simulates" them with
  * a random velocity each timestep. The simulation also
  * sends some example 3D grid fields which contain constant data
- */ 
+ */
 
 struct Particle {
-	vec3<float> pos;
-	int attrib;
+    vec3<float> pos;
+    int attrib;
 };
 
 int rank, size;
@@ -51,95 +51,96 @@ const std::array<uint64_t, 3> field_dims({32, 32, 32});
 void init();
 void step();
 
-int main(int ac, char **av) {
-	MPI_Init(&ac, &av);
+int main(int ac, char **av)
+{
+    MPI_Init(&ac, &av);
 
-	bool quiet = false;
-	for (int i = 0; i < ac; ++i) {
-		if (std::strcmp(av[i], "-n") == 0) {
-			N_STEPS = std::atoi(av[++i]);
-		} else if (std::strcmp(av[i], "-particles") == 0) {
-			NUM_PARTICLES = std::atoi(av[++i]);
-		} else if (std::strcmp(av[i], "-quiet") == 0) {
-			quiet = true;
-		}
-	}
+    bool quiet = false;
+    for (int i = 0; i < ac; ++i) {
+        if (std::strcmp(av[i], "-n") == 0) {
+            N_STEPS = std::atoi(av[++i]);
+        } else if (std::strcmp(av[i], "-particles") == 0) {
+            NUM_PARTICLES = std::atoi(av[++i]);
+        } else if (std::strcmp(av[i], "-quiet") == 0) {
+            quiet = true;
+        }
+    }
 
-	MPI_Comm sim_comm = MPI_COMM_WORLD;
-	MPI_Comm_rank(sim_comm, &rank);
-	MPI_Comm_size(sim_comm, &size);
-	std::cout << "#sim rank " << rank << "/" << size << "\n";
+    MPI_Comm sim_comm = MPI_COMM_WORLD;
+    MPI_Comm_rank(sim_comm, &rank);
+    MPI_Comm_size(sim_comm, &size);
+    std::cout << "#sim rank " << rank << "/" << size << "\n";
 
-	grid = compute_grid(size);
-	brick_id = vec3<int>(rank % grid.x, (rank / grid.x) % grid.y,
-			rank / (grid.x * grid.y));
+    grid = compute_grid(size);
+    brick_id = vec3<int>(rank % grid.x, (rank / grid.x) % grid.y, rank / (grid.x * grid.y));
 
-	std::cout << "Waiting for client connection on port 29374" << std::endl;
-	libISInit(MPI_COMM_WORLD, 29374);
+    std::cout << "Waiting for client connection on port 29374" << std::endl;
+    libISInit(MPI_COMM_WORLD, 29374);
 
-	rng = std::mt19937(std::random_device()());
-	init();
+    rng = std::mt19937(std::random_device()());
+    init();
 
-	libISSimState *libis_state = libISMakeSimState();
+    libISSimState *libis_state = libISMakeSimState();
 
-	libISVec3f world_min{0.f, 0.f, 0.f};
-	libISVec3f world_max{grid.x, grid.y, grid.z};
-	libISBox3f world_bounds = libISMakeBox3f();
-	libISBoxExtend(&world_bounds, &world_min);
-	libISBoxExtend(&world_bounds, &world_max);
-	libISSetWorldBounds(libis_state, world_bounds);
+    libISVec3f world_min{0.f, 0.f, 0.f};
+    libISVec3f world_max{grid.x, grid.y, grid.z};
+    libISBox3f world_bounds = libISMakeBox3f();
+    libISBoxExtend(&world_bounds, &world_min);
+    libISBoxExtend(&world_bounds, &world_max);
+    libISSetWorldBounds(libis_state, world_bounds);
 
-	libISSetLocalBounds(libis_state, bounds);
-	libISSetGhostBounds(libis_state, bounds);
+    libISSetLocalBounds(libis_state, bounds);
+    libISSetGhostBounds(libis_state, bounds);
 
-	// Setup the shared pointers to our particle and field data
-	libISSetParticles(libis_state, NUM_PARTICLES, 0, sizeof(Particle), particle.data());
-	libISSetField(libis_state, "field_one", field_dims.data(), FLOAT, field_one.data());
-	libISSetField(libis_state, "field_two", field_dims.data(), UINT8, field_two.data());
+    // Setup the shared pointers to our particle and field data
+    libISSetParticles(libis_state, NUM_PARTICLES, 0, sizeof(Particle), particle.data());
+    libISSetField(libis_state, "field_one", field_dims.data(), FLOAT, field_one.data());
+    libISSetField(libis_state, "field_two", field_dims.data(), UINT8, field_two.data());
 
-	for (int i = 0; i < N_STEPS; ++i) {
-		MPI_Barrier(sim_comm);
-		step();
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
-		if (rank == 0 && !quiet) {
-			std::cout << "Timestep " << i << "\n";
-		}
-		// Send data to clients or process commands each timestep
-		libISProcess(libis_state);
-	}
+    for (int i = 0; i < N_STEPS; ++i) {
+        MPI_Barrier(sim_comm);
+        step();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (rank == 0 && !quiet) {
+            std::cout << "Timestep " << i << "\n";
+        }
+        // Send data to clients or process commands each timestep
+        libISProcess(libis_state);
+    }
 
-	libISFreeSimState(libis_state);
-	libISFinalize();
-	MPI_Finalize();
-	return 0;
+    libISFreeSimState(libis_state);
+    libISFinalize();
+    MPI_Finalize();
+    return 0;
 }
-void init() {
-	bounds = libISMakeBox3f();
-	std::uniform_real_distribution<float> distrib;
-	for (size_t i = 0; i < NUM_PARTICLES; ++i) {
-		Particle v;
-		v.pos = vec3<float>(distrib(rng), distrib(rng), distrib(rng)) + vec3<float>(brick_id);
-		v.attrib = rank;
-		particle.push_back(v);
+void init()
+{
+    bounds = libISMakeBox3f();
+    std::uniform_real_distribution<float> distrib;
+    for (size_t i = 0; i < NUM_PARTICLES; ++i) {
+        Particle v;
+        v.pos = vec3<float>(distrib(rng), distrib(rng), distrib(rng)) + vec3<float>(brick_id);
+        v.attrib = rank;
+        particle.push_back(v);
 
-		libISVec3f isv{v.pos.x, v.pos.y, v.pos.z};
-		libISBoxExtend(&bounds, &isv);
-	}
+        libISVec3f isv{v.pos.x, v.pos.y, v.pos.z};
+        libISBoxExtend(&bounds, &isv);
+    }
 
-	// Setup the testing fields. Field one is filled with random data in [0, 1]
-	// Field two is filled with our rank number
-	field_one.resize(field_dims[0] * field_dims[1] * field_dims[2]);
-	field_two.resize(field_dims[0] * field_dims[1] * field_dims[2], uint8_t(rank));
+    // Setup the testing fields. Field one is filled with random data in [0, 1]
+    // Field two is filled with our rank number
+    field_one.resize(field_dims[0] * field_dims[1] * field_dims[2]);
+    field_two.resize(field_dims[0] * field_dims[1] * field_dims[2], uint8_t(rank));
 
-	for (auto &x : field_one) {
-		x = distrib(rng);
-	}
+    for (auto &x : field_one) {
+        x = distrib(rng);
+    }
 }
-void step() {
-	std::uniform_real_distribution<float> distrib(-1.f, 1.f);
-	// TODO: This should clamp them in the local bounds
-	for (auto &p : particle) {
-		p.pos += speed * vec3<float>(distrib(rng), distrib(rng), distrib(rng));
-	}
+void step()
+{
+    std::uniform_real_distribution<float> distrib(-1.f, 1.f);
+    // TODO: This should clamp them in the local bounds
+    for (auto &p : particle) {
+        p.pos += speed * vec3<float>(distrib(rng), distrib(rng), distrib(rng));
+    }
 }
-

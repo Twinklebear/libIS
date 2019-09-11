@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <mpi.h>
 #include "is_common.h"
 
 /* Simulation side library for libIS. Provides methods
@@ -49,7 +50,7 @@ extern "C" void libISFinalize(void);
  */
 extern "C" void libISProcess(const libISSimState *state);
 
-extern "C" libISSimState* libISMakeSimState(void);
+extern "C" libISSimState *libISMakeSimState(void);
 extern "C" void libISFreeSimState(libISSimState *state);
 
 /* Set the world bounds of the entire simulation
@@ -72,8 +73,11 @@ extern "C" void libISSetGhostBounds(libISSimState *state, const libISBox3f box);
  * data: pointer to the field data, will be shared with the simulation with a copy
  *       sent to clients during processing.
  */
-extern "C" void libISSetField(libISSimState *state, const char *fieldName,
-		const uint64_t dimensions[3], const libISDType type, const void *data);
+extern "C" void libISSetField(libISSimState *state,
+                              const char *fieldName,
+                              const uint64_t dimensions[3],
+                              const libISDType type,
+                              const void *data);
 
 /* Set or update the particle data which will be sent to clients querying data. The
  * pointer is shared with the simulation, when a client connects and requests
@@ -88,6 +92,8 @@ extern "C" void libISSetField(libISSimState *state, const char *fieldName,
  * data: pointer to the particle data, will be shared with the simulation with a copy
  *       sent to clients during processing.
  */
-extern "C" void libISSetParticles(libISSimState *state, const uint64_t numParticles,
-		const uint64_t numGhostParticles, const uint64_t particleStride, const void *data);
-
+extern "C" void libISSetParticles(libISSimState *state,
+                                  const uint64_t numParticles,
+                                  const uint64_t numGhostParticles,
+                                  const uint64_t particleStride,
+                                  const void *data);
