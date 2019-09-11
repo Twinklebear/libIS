@@ -50,6 +50,7 @@ struct SimulationConnection {
 	std::shared_ptr<InterComm> intercomm = nullptr;
 	int rank, size, clientIntraCommRoot;
 	int simSocket, simPort;
+    int simQuit = 0;
 	std::string myPortName, simServer;
 
 	std::shared_ptr<std::ofstream> log;
@@ -62,7 +63,7 @@ struct SimulationConnection {
 
 private:
 	void connectSim();
-	void sendCommand(const COMMAND cmd);
+	int sendCommand(const COMMAND cmd);
 	void disconnect();
 };
 SimulationConnection::SimulationConnection(MPI_Comm com, const std::string &simServer,
@@ -120,11 +121,15 @@ SimulationConnection::SimulationConnection(MPI_Comm com, MPI_Comm sim)
 	std::cout <<"WILL TODO UPDATE THIS!\n";
 }
 SimulationConnection::~SimulationConnection() {
-	disconnect();
+    if (!simQuit) {
+        disconnect();
+    }
 	MPI_Comm_free(&ownComm);
 }
 std::vector<SimState> SimulationConnection::query() {
-	sendCommand(QUERY);
+	if (sendCommand(QUERY)) {
+        return std::vector<SimState>{};
+    }
 
 	int correctedSimSize = intercomm->remoteSize();
 	// TODO: This is assuming the use existing comm mode is running in mpi
@@ -214,8 +219,14 @@ void SimulationConnection::connectSim() {
 	myPortName = intercomm->portName();
 	sendCommand(CONNECT);
 	intercomm->accept(ownComm);
+
+    // Recieve command back from rank 0 telling us to continue or quit
+    if (rank == 0) {
+        intercomm->recv(&simQuit, sizeof(int), 0);
+    }
+    MPI_Bcast(&simQuit, 1, MPI_INT, 0, ownComm);
 }
-void SimulationConnection::sendCommand(const COMMAND cmd) {
+int SimulationConnection::sendCommand(const COMMAND cmd) {
 	// Sending a command consists of:
 	// 1. sending our MPI port name to identify ourself (length, then string)
 	// 2. sending the command as an int
@@ -259,9 +270,15 @@ void SimulationConnection::sendCommand(const COMMAND cmd) {
 		} else {
 			int cmdVal = cmd;
 			intercomm->send(&cmdVal, sizeof(int), 0);
+
+            // Recieve command back from rank 0 telling us to continue or quit
+            intercomm->recv(&simQuit, sizeof(int), 0);
 		}
 	}
 	MPI_Barrier(ownComm);
+
+    MPI_Bcast(&simQuit, 1, MPI_INT, 0, ownComm);
+    return simQuit;
 }
 void SimulationConnection::disconnect() {
 	sendCommand(DISCONNECT);
@@ -270,24 +287,51 @@ void SimulationConnection::disconnect() {
 
 static std::unique_ptr<SimulationConnection> sim;
 
-void connect(const std::string &simServer, const int port, MPI_Comm ownComm) {
+void connect(const std::string &simServer, const int port, MPI_Comm ownComm, bool *sim_quit) {
 	sim = std::unique_ptr<SimulationConnection>(new SimulationConnection(ownComm, simServer, port));
+    if (sim->simQuit) {
+        sim = nullptr;
+        if (sim_quit) {
+            *sim_quit = true;
+        }
+    }
 }
-void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm) {
+
+void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm, bool *sim_quit) {
 	sim = std::unique_ptr<SimulationConnection>(new SimulationConnection(ownComm, simComm));
+    if (sim->simQuit) {
+        sim = nullptr;
+        if (sim_quit) {
+            *sim_quit = true;
+        }
+    }
 }
-std::vector<SimState> query() {
-	return sim->query();
+
+std::vector<SimState> query(bool *sim_quit) {
+	auto res = sim->query();
+    if (sim->simQuit) {
+        sim = nullptr;
+        if (sim_quit) {
+            *sim_quit = true;
+        }
+    }
+    return res;
 }
-std::future<std::vector<SimState>> query_async() {
+
+std::future<std::vector<SimState>> query_async(bool *sim_quit) {
 	std::future<std::vector<SimState>> future =
-		std::async(std::launch::async, [](){
-			return query();
+		std::async(std::launch::async, [&](){
+			return query(sim_quit);
 		});
 	return future;
 }
+
 void disconnect() {
 	sim = nullptr;
+}
+
+bool sim_connected() {
+    return sim != nullptr;
 }
 
 }

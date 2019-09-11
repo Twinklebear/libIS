@@ -40,12 +40,15 @@ int main(int ac, char **av) {
 
 	std::string server;
 	int port = -1;
+    int num_queries = 10;
 	for (int i = 1; i < ac; ++i) {
 		if (std::strcmp(av[i], "-server") == 0) {
 			server = av[++i];
 		} else if (std::strcmp(av[i], "-port") == 0) {
 			port = std::atoi(av[++i]);
-		}
+		} else if (std::strcmp(av[i], "-n") == 0) {
+            num_queries = std::atoi(av[++i]);
+        }
 	}
 	if (server.empty() || port < 0) {
 		std::cerr << "Usage: " << av[0] << " -server <server> -port <port>\n";
@@ -55,7 +58,10 @@ int main(int ac, char **av) {
 	// Connect to the simulation
 	is::client::connect(server, port, MPI_COMM_WORLD);
 
-	for (int j = 0; j < 10; ++j) {
+	for (int j = 0; j < num_queries; ++j) {
+        if (!is::client::sim_connected()) {
+            break;
+        }
 		// Query the data from the simulation
 		auto regions = is::client::query();
 

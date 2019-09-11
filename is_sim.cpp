@@ -100,11 +100,35 @@ ConnectionManager::ConnectionManager(MPI_Comm sim, MPI_Comm client)
 	std::cout << "WILL TODO UPDATE\n";
 }
 ConnectionManager::~ConnectionManager() {
-	MPI_Comm_free(&simComm);
 	if (listenerThread.joinable()) {
 		exitThread = true;
 		listenerThread.join();
 	}
+
+	std::lock_guard<std::mutex> lock(mutex);
+
+	int haveQuery = newQuery ? 1 : 0;
+	// We have a client connected, we need to force disconnect them so they
+    // don't hang when trying to query us after the sim quits.
+	if (!haveQuery && simRank == 0 && intercomm != nullptr) {
+        intercomm->recv(&clientCommand, sizeof(int), 0);
+	}
+
+	MPI_Bcast(&clientCommand, 1, MPI_INT, 0, simComm);
+
+    // Connect the client so we can tell them to disconnect
+    if (clientCommand == CONNECT) {
+		connectClient();
+    }
+
+	if (simRank == 0) {
+		std::cout << "We have final client query, command: "
+			<< clientCommand << ", telling rank to quit\n" << std::flush;
+        int quit = 1;
+        intercomm->send(&quit, sizeof(int), 0);
+	}
+
+	MPI_Comm_free(&simComm);
 }
 void ConnectionManager::listenForClient() {
 	const int listenSocket = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
@@ -197,6 +221,7 @@ void ConnectionManager::listenForClient() {
 void ConnectionManager::process(const SimState *state) {
 	std::lock_guard<std::mutex> lock(mutex);
 
+    int quit = 0;
 	int haveQuery = newQuery ? 1 : 0;
 	// Asynchronously check for client commands if we've got a client connected
 	// TODO: Re-add intracomm support
@@ -204,6 +229,9 @@ void ConnectionManager::process(const SimState *state) {
 		haveQuery = intercomm->probe(0) ? 1 : 0;
 		if (haveQuery) {
 			intercomm->recv(&clientCommand, sizeof(clientCommand), 0);
+
+            // Tell the client not to quit
+            intercomm->send(&quit, sizeof(int), 0);
 		}
 	}
 
@@ -220,7 +248,11 @@ void ConnectionManager::process(const SimState *state) {
 	}
 
 	switch (clientCommand) {
-		case CONNECT: connectClient(); break;
+		case CONNECT:
+            connectClient();
+            // Tell the client not to quit
+            intercomm->send(&quit, sizeof(int), 0);
+            break;
 		case QUERY: handleQuery(state); break;
 		case DISCONNECT: disconnectClient(); break;
 		default: throw std::runtime_error("Invalid or unknown client command!");
