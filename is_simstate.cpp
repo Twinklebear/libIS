@@ -149,7 +149,7 @@ SimStateHeader::SimStateHeader(const SimState *state)
       ghost(state->ghost),
       simRank(state->simRank),
       numFields(state->fields.size()),
-      hasParticles(state->particles.numParticles > 0)
+      hasParticles(state->particles.numParticles)
 {
 }
 

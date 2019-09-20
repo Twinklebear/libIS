@@ -262,7 +262,9 @@ namespace sim {
         case CONNECT:
             connectClient();
             // Tell the client not to quit
-            intercomm->send(&quit, sizeof(int), 0);
+            if (simRank == 0) {
+                intercomm->send(&quit, sizeof(int), 0);
+            }
             break;
         case QUERY:
             handleQuery(state);

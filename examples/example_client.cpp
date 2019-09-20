@@ -97,6 +97,7 @@ int main(int ac, char **av)
     }
 
     is::client::disconnect();
-    MPI_Finalize();
+    // TODO: Seems like somethign on comm world isn't matched? finalize shouldn't hang
+    //MPI_Finalize();
     return 0;
 }
