@@ -17,7 +17,7 @@
 #include "is_client.h"
 #include <chrono>
 #include <cstring>
-#include <fstream>
+#include <cstdio>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -54,7 +54,7 @@ namespace client {
         int simQuit = 0;
         std::string myPortName, simServer;
 
-        std::shared_ptr<std::ofstream> log;
+        std::FILE *log = nullptr;
 
         SimulationConnection(MPI_Comm com, const std::string &simServer, const int port);
         SimulationConnection(MPI_Comm com, MPI_Comm sim);
@@ -83,7 +83,7 @@ namespace client {
         MPI_Comm_rank(ownComm, &rank);
         check_logging_wanted();
         if (LIBIS_LOGGING) {
-            log = std::make_shared<std::ofstream>(LIBIS_LOG_OUTPUT.c_str());
+            log = std::fopen(LIBIS_LOG_OUTPUT.c_str(), "wa");
         }
         connectSim();
     }
@@ -101,7 +101,7 @@ namespace client {
         MPI_Comm_rank(ownComm, &rank);
         check_logging_wanted();
         if (LIBIS_LOGGING) {
-            log = std::make_shared<std::ofstream>(LIBIS_LOG_OUTPUT.c_str());
+            log = std::fopen(LIBIS_LOG_OUTPUT.c_str(), "wa");
         }
 
         simComm = sim;
@@ -125,6 +125,9 @@ namespace client {
     {
         if (!simQuit) {
             disconnect();
+        }
+        if (log) {
+            std::fclose(log);
         }
         MPI_Comm_free(&ownComm);
     }
@@ -207,16 +210,16 @@ namespace client {
                        0,
                        ownComm);
             if (rank == 0) {
-                *log << "#------#\nOn " << size << " nodes, with " << simsPerClient
-                     << " sims/client\nlibIS transfer times: [ ";
+                std::fprintf(log, "#------#\nOn %d nodes, with %d sims/client\n"
+                        "libIS transfer times: [", size, simsPerClient);
                 for (size_t i = 0; i < results.size(); i += 2) {
-                    *log << results[i] << "ns ";
+                    std::fprintf(log, "%luns", results[i]);
                 }
-                *log << " ]\nlibIS bytes transferred: [ ";
+                std::fprintf(log, "]\nlibIS bytes transferred: [");
                 for (size_t i = 1; i < results.size(); i += 2) {
-                    *log << results[i] << "b ";
+                    std::fprintf(log, "%lub", results[i]);
                 }
-                *log << " ]" << std::endl;
+                std::fprintf(log, " ]\n");
             }
         }
 

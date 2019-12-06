@@ -30,6 +30,11 @@ target_link_libraries(example_client PRIVATE is_client ${MPI_CXX_LIBRARIES})
 target_include_directories(example_client PRIVATE
 	$<BUILD_INTERFACE:${MPI_CXX_INCLUDE_PATH}>)
 
+set_target_properties(example_sim example_client
+	PROPERTIES
+	CXX_STANDARD 11
+	CXX_STANDARD_REQUIRED ON)
+
 if (BUILD_LAMMPS_EXAMPLE)
 	add_executable(lammps_example lammps_example.cpp)
 
@@ -66,5 +71,10 @@ if (BUILD_LAMMPS_EXAMPLE)
 	target_include_directories(lammps_example PRIVATE
 		$<BUILD_INTERFACE:${MPI_CXX_INCLUDE_PATH}>
 		$<BUILD_INTERFACE:${LAMMPS_INCLUDE_DIR}>)
+
+    set_target_properties(lammps_example
+        PROPERTIES
+        CXX_STANDARD 11
+        CXX_STANDARD_REQUIRED ON)
 endif()
 
