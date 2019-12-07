@@ -213,11 +213,11 @@ namespace client {
                 std::fprintf(log, "#------#\nOn %d nodes, with %d sims/client\n"
                         "libIS transfer times: [", size, simsPerClient);
                 for (size_t i = 0; i < results.size(); i += 2) {
-                    std::fprintf(log, "%luns", results[i]);
+                    std::fprintf(log, " %luns", results[i]);
                 }
                 std::fprintf(log, "]\nlibIS bytes transferred: [");
                 for (size_t i = 1; i < results.size(); i += 2) {
-                    std::fprintf(log, "%lub", results[i]);
+                    std::fprintf(log, " %lub", results[i]);
                 }
                 std::fprintf(log, " ]\n");
             }
