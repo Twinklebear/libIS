@@ -215,7 +215,7 @@ namespace client {
                 for (size_t i = 0; i < results.size(); i += 2) {
                     std::fprintf(log, " %luns", results[i]);
                 }
-                std::fprintf(log, "]\nlibIS bytes transferred: [");
+                std::fprintf(log, " ]\nlibIS bytes transferred: [");
                 for (size_t i = 1; i < results.size(); i += 2) {
                     std::fprintf(log, " %lub", results[i]);
                 }
