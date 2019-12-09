@@ -67,7 +67,8 @@ std::shared_ptr<MPIInterComm> MPIInterComm::listen(MPI_Comm ownComm)
     return interComm;
 }
 
-std::shared_ptr<MPIInterComm> MPIInterComm::connect(const std::string &mpiPort, MPI_Comm ownComm)
+std::shared_ptr<MPIInterComm> MPIInterComm::connect(const std::string &mpiPort,
+                                                    MPI_Comm ownComm)
 {
     auto interComm = std::make_shared<MPIInterComm>();
     MPI_Comm_connect(
@@ -169,7 +170,8 @@ std::shared_ptr<SocketInterComm> SocketInterComm::listen(MPI_Comm ownComm)
 
     char hostname[256] = {0};
     gethostname(hostname, 255);
-    intercomm->hostPortName = std::string(hostname) + ":" + std::to_string(intercomm->listenPort);
+    intercomm->hostPortName =
+        std::string(hostname) + ":" + std::to_string(intercomm->listenPort);
     std::cout << "client listening info: " << intercomm->portName() << "\n" << std::flush;
 
     return intercomm;
@@ -185,7 +187,8 @@ void parseHost(const std::string &hostport, std::string &host, int &port)
     port = std::stoi(hostport.substr(fnd + 1));
 }
 
-std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &host, MPI_Comm ownComm)
+std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &host,
+                                                          MPI_Comm ownComm)
 {
     auto intercomm = std::make_shared<SocketInterComm>();
 
@@ -194,10 +197,10 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
     MPI_Comm_rank(ownComm, &rank);
     MPI_Comm_size(ownComm, &worldSize);
 
-    // The host we get back is the name and port for rank 0, so first all clients connect to rank 0
-    // which sends back the info about the other ranks to connect to and establish the group
-    // Each connecting client will tell us what rank it is, and we tell it which rank we are
-    // so that the socket can be placed in the right index in the vector of sockets
+    // The host we get back is the name and port for rank 0, so first all clients connect to
+    // rank 0 which sends back the info about the other ranks to connect to and establish the
+    // group Each connecting client will tell us what rank it is, and we tell it which rank we
+    // are so that the socket can be placed in the right index in the vector of sockets
 
     std::vector<std::string> remoteHosts;
     {
@@ -222,14 +225,15 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
         servAddr.sin_family = AF_INET;
         servAddr.sin_port = htons(port);
         std::memcpy(&servAddr.sin_addr.s_addr, server->h_addr, server->h_length);
-        if (::connect(intercomm->sockets[0], (struct sockaddr *)&servAddr, sizeof(servAddr)) < 0) {
+        if (::connect(intercomm->sockets[0], (struct sockaddr *)&servAddr, sizeof(servAddr)) <
+            0) {
             perror("failed to connect to rank 0");
             std::cout << std::flush;
             throw std::runtime_error("Failed to connect to remote rank 0");
         }
 
-        // Now send rank 0 of the remote our rank, and get back the list of other remotes to connect
-        // to
+        // Now send rank 0 of the remote our rank, and get back the list of other remotes to
+        // connect to
         ::send(intercomm->sockets[0], &rank, sizeof(int), 0);
         // Rank 0 also sends the world size
         if (rank == 0) {
@@ -244,7 +248,8 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
         readbuf >> remoteHosts;
     }
 
-    std::cout << "Rank " << rank << " has " << remoteHosts.size() << " other hosts to connect to\n";
+    std::cout << "Rank " << rank << " has " << remoteHosts.size()
+              << " other hosts to connect to\n";
 
     for (const auto &r : remoteHosts) {
         std::cout << "rank " << rank << " connecting to remote " << r << "\n" << std::flush;
@@ -263,8 +268,9 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
         servAddr.sin_family = AF_INET;
         servAddr.sin_port = htons(port);
         std::memcpy(&servAddr.sin_addr.s_addr, server->h_addr, server->h_length);
-        if (::connect(intercomm->sockets.back(), (struct sockaddr *)&servAddr, sizeof(servAddr)) <
-            0) {
+        if (::connect(intercomm->sockets.back(),
+                      (struct sockaddr *)&servAddr,
+                      sizeof(servAddr)) < 0) {
             throw std::runtime_error("Failed to connect to remote host " + r);
         }
 
@@ -358,7 +364,8 @@ void SocketInterComm::accept(MPI_Comm ownComm)
             ::recv(accepted, &remoteRank, sizeof(int), 0);
             ++nconnected;
 
-            std::cout << "Rank " << rank << " got connection from rank: " << remoteRank << "\n";
+            std::cout << "Rank " << rank << " got connection from rank: " << remoteRank
+                      << "\n";
             remotes[remoteRank] = accepted;
         }
     }
