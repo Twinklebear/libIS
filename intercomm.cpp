@@ -1,7 +1,9 @@
 #include "intercomm.h"
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 #include <unordered_map>
 #include <netdb.h>
 #include <poll.h>
@@ -129,6 +131,8 @@ const std::string &MPIInterComm::portName()
     return mpiPortName;
 }
 
+const static int SOCKET_MAX_SIMULTANEOUS_CONNECTIONS = 32;
+
 SocketInterComm::~SocketInterComm()
 {
     if (listenSocket != -1) {
@@ -158,7 +162,7 @@ std::shared_ptr<SocketInterComm> SocketInterComm::listen(MPI_Comm ownComm)
         throw std::runtime_error("Failed to bind socket");
     }
 
-    if (::listen(intercomm->listenSocket, 8) < 0) {
+    if (::listen(intercomm->listenSocket, SOCKET_MAX_SIMULTANEOUS_CONNECTIONS) < 0) {
         throw std::runtime_error("Failed to listen on socket");
     }
 
@@ -221,63 +225,78 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
             throw std::runtime_error("Lookup failed for remote " + host);
         }
 
-        struct sockaddr_in servAddr = {0};
-        servAddr.sin_family = AF_INET;
-        servAddr.sin_port = htons(port);
-        std::memcpy(&servAddr.sin_addr.s_addr, server->h_addr, server->h_length);
-        if (::connect(intercomm->sockets[0], (struct sockaddr *)&servAddr, sizeof(servAddr)) <
-            0) {
-            perror("failed to connect to rank 0");
-            std::cout << std::flush;
-            throw std::runtime_error("Failed to connect to remote rank 0");
-        }
+        // Rate limit our connections to rank 0
+        for (int i = 0; i < worldSize; i += SOCKET_MAX_SIMULTANEOUS_CONNECTIONS) {
+            if (rank >= i && rank < i + SOCKET_MAX_SIMULTANEOUS_CONNECTIONS) {
+                struct sockaddr_in servAddr = {0};
+                servAddr.sin_family = AF_INET;
+                servAddr.sin_port = htons(port);
+                std::memcpy(&servAddr.sin_addr.s_addr, server->h_addr, server->h_length);
+                if (::connect(intercomm->sockets[0],
+                              (struct sockaddr *)&servAddr,
+                              sizeof(servAddr)) < 0) {
+                    perror("failed to connect to rank 0");
+                    std::cout << std::flush;
+                    throw std::runtime_error("Failed to connect to remote rank 0");
+                }
 
-        // Now send rank 0 of the remote our rank, and get back the list of other remotes to
-        // connect to
-        ::send(intercomm->sockets[0], &rank, sizeof(int), 0);
-        // Rank 0 also sends the world size
-        if (rank == 0) {
-            ::send(intercomm->sockets[0], &worldSize, sizeof(int), 0);
-        }
-        uint64_t bufSize = 0;
-        ::recv(intercomm->sockets[0], &bufSize, sizeof(uint64_t), 0);
-        std::vector<char> recvbuf(bufSize, 0);
-        ::recv(intercomm->sockets[0], recvbuf.data(), recvbuf.size(), 0);
+                // Now send rank 0 of the remote our rank, and get back the list of other
+                // remotes to connect to
+                ::send(intercomm->sockets[0], &rank, sizeof(int), 0);
+                // Rank 0 also sends the world size
+                if (rank == 0) {
+                    ::send(intercomm->sockets[0], &worldSize, sizeof(int), 0);
+                }
+                uint64_t bufSize = 0;
+                ::recv(intercomm->sockets[0], &bufSize, sizeof(uint64_t), 0);
+                std::vector<char> recvbuf(bufSize, 0);
+                ::recv(intercomm->sockets[0], recvbuf.data(), recvbuf.size(), 0);
 
-        is::ReadBuffer readbuf(recvbuf);
-        readbuf >> remoteHosts;
+                is::ReadBuffer readbuf(recvbuf);
+                readbuf >> remoteHosts;
+            }
+            MPI_Barrier(ownComm);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
 
     std::cout << "Rank " << rank << " has " << remoteHosts.size()
               << " other hosts to connect to\n";
 
-    for (const auto &r : remoteHosts) {
-        std::cout << "rank " << rank << " connecting to remote " << r << "\n" << std::flush;
+    // Rate limit our setup with the other hosts
+    for (int i = 0; i < worldSize; i += SOCKET_MAX_SIMULTANEOUS_CONNECTIONS) {
+        if (rank >= i && rank < i + SOCKET_MAX_SIMULTANEOUS_CONNECTIONS) {
+            for (const auto &r : remoteHosts) {
+                std::cout << "rank " << rank << " connecting to remote " << r << "\n"
+                          << std::flush;
 
-        intercomm->sockets.push_back(socket(AF_INET, SOCK_STREAM, 0));
-        std::string servername;
-        int port;
-        parseHost(r, servername, port);
+                intercomm->sockets.push_back(socket(AF_INET, SOCK_STREAM, 0));
+                std::string servername;
+                int port;
+                parseHost(r, servername, port);
 
-        struct hostent *server = gethostbyname(servername.c_str());
-        if (!server) {
-            throw std::runtime_error("Lookup failed for remote " + r);
+                struct hostent *server = gethostbyname(servername.c_str());
+                if (!server) {
+                    throw std::runtime_error("Lookup failed for remote " + r);
+                }
+
+                struct sockaddr_in servAddr = {0};
+                servAddr.sin_family = AF_INET;
+                servAddr.sin_port = htons(port);
+                std::memcpy(&servAddr.sin_addr.s_addr, server->h_addr, server->h_length);
+                if (::connect(intercomm->sockets.back(),
+                              (struct sockaddr *)&servAddr,
+                              sizeof(servAddr)) < 0) {
+                    throw std::runtime_error("Failed to connect to remote host " + r);
+                }
+
+                // Now send it our rank so it knows who we are
+                ::send(intercomm->sockets.back(), &rank, sizeof(int), 0);
+            }
         }
-
-        struct sockaddr_in servAddr = {0};
-        servAddr.sin_family = AF_INET;
-        servAddr.sin_port = htons(port);
-        std::memcpy(&servAddr.sin_addr.s_addr, server->h_addr, server->h_length);
-        if (::connect(intercomm->sockets.back(),
-                      (struct sockaddr *)&servAddr,
-                      sizeof(servAddr)) < 0) {
-            throw std::runtime_error("Failed to connect to remote host " + r);
-        }
-
-        // Now send it our rank so it knows who we are
-        ::send(intercomm->sockets.back(), &rank, sizeof(int), 0);
+        MPI_Barrier(ownComm);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-
     return intercomm;
 }
 
