@@ -35,6 +35,7 @@
 #include "is_buffering.h"
 #include "is_command.h"
 #include "is_simstate.h"
+#include "mac_sockets_defines.h"
 
 namespace is {
 namespace sim {
@@ -167,8 +168,8 @@ namespace sim {
         char hostname[1024] = {0};
         gethostname(hostname, 1023);
 
-        std::cout << "is_sim: now listening for connections on " << hostname << ":" << LISTEN_PORT
-                  << std::endl;
+        std::cout << "is_sim: now listening for connections on " << hostname << ":"
+                  << LISTEN_PORT << std::endl;
 
         while (!exitThread) {
             struct sockaddr_in addr;
@@ -436,10 +437,10 @@ extern "C" void libISSetField(libISSimState *s,
 {
     using namespace is;
     const uint64_t elemStride = sim::dtypeStride(type);
-    std::shared_ptr<Array> array =
-        std::make_shared<BorrowedArray>(const_cast<void *>(data),
-                                        dimensions[0] * dimensions[1] * dimensions[2] * elemStride,
-                                        elemStride);
+    std::shared_ptr<Array> array = std::make_shared<BorrowedArray>(
+        const_cast<void *>(data),
+        dimensions[0] * dimensions[1] * dimensions[2] * elemStride,
+        elemStride);
     s->state->fields[fieldName] = Field(fieldName, type, dimensions, array);
 }
 extern "C" void libISSetParticles(libISSimState *s,

@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "is_buffering.h"
+#include "mac_sockets_defines.h"
 
 bool mpi_open_port_available()
 {
