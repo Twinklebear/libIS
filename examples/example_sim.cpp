@@ -46,7 +46,7 @@ libISBox3f bounds;
 
 std::vector<float> field_one;
 std::vector<uint8_t> field_two;
-const std::array<uint64_t, 3> field_dims({32, 32, 32});
+const std::array<uint64_t, 3> field_dims({64, 64, 64});
 
 void init();
 void step();
@@ -89,6 +89,13 @@ int main(int ac, char **av)
     libISBoxExtend(&world_bounds, &world_max);
     libISSetWorldBounds(libis_state, world_bounds);
 
+    {
+        bounds = libISMakeBox3f();
+        libISVec3f box_min{brick_id.x, brick_id.y, brick_id.z};
+        libISVec3f box_max{brick_id.x + 1.f, brick_id.y + 1.f, brick_id.z + 1.f};
+        libISBoxExtend(&bounds, &box_min);
+        libISBoxExtend(&bounds, &box_max);
+    }
     libISSetLocalBounds(libis_state, bounds);
     libISSetGhostBounds(libis_state, bounds);
 
@@ -115,16 +122,12 @@ int main(int ac, char **av)
 }
 void init()
 {
-    bounds = libISMakeBox3f();
     std::uniform_real_distribution<float> distrib;
     for (size_t i = 0; i < NUM_PARTICLES; ++i) {
         Particle v;
         v.pos = vec3<float>(distrib(rng), distrib(rng), distrib(rng)) + vec3<float>(brick_id);
         v.attrib = rank;
         particle.push_back(v);
-
-        libISVec3f isv{v.pos.x, v.pos.y, v.pos.z};
-        libISBoxExtend(&bounds, &isv);
     }
 
     // Setup the testing fields. Field one is filled with random data in [0, 1]
@@ -132,8 +135,16 @@ void init()
     field_one.resize(field_dims[0] * field_dims[1] * field_dims[2]);
     field_two.resize(field_dims[0] * field_dims[1] * field_dims[2], uint8_t(rank));
 
-    for (auto &x : field_one) {
-        x = distrib(rng);
+    for (size_t k = 0; k < field_dims[2]; ++k) {
+        for (size_t j = 0; j < field_dims[1]; ++j) {
+            for (size_t i = 0; i < field_dims[0]; ++i) {
+                const vec3<float> voxel_pos = vec3<float>(i + brick_id.x * field_dims[0],
+                                                          j + brick_id.y * field_dims[1],
+                                                          k + brick_id.z * field_dims[2]);
+                const size_t voxel_id = (k * field_dims[1] + j) * field_dims[0] + i;
+                field_one[voxel_id] = voxel_pos.length();
+            }
+        }
     }
 }
 void step()

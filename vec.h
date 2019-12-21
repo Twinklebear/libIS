@@ -32,6 +32,10 @@ struct vec3 {
     vec3(const vec3<B> &v) : x(v.x), y(v.y), z(v.z)
     {
     }
+    float length() const
+    {
+        return std::sqrt(x * x + y * y + z * z);
+    }
     vec3<T> &operator+=(const vec3<T> &a)
     {
         x += a.x;
