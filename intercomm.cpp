@@ -19,7 +19,7 @@ bool mpi_open_port_available()
     return false;
 #else
     // TODO: Maybe get the errhandler and restore it after instead of setting back to fatal?
-    MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+    MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
     char mpiPortName[MPI_MAX_PORT_NAME + 1] = {0};
     int ret = MPI_Open_port(MPI_INFO_NULL, mpiPortName);
     if (ret != 0) {
@@ -76,8 +76,14 @@ std::shared_ptr<MPIInterComm> MPIInterComm::connect(const std::string &mpiPort,
     auto interComm = std::make_shared<MPIInterComm>();
     MPI_Comm_connect(
         const_cast<char *>(mpiPort.c_str()), MPI_INFO_NULL, 0, ownComm, &interComm->comm);
-    MPI_Comm_set_errhandler(interComm->comm, MPI_ERRORS_RETURN);
+    MPI_Comm_set_errhandler(interComm->comm, MPI_ERRORS_ARE_FATAL);
     MPI_Comm_remote_size(interComm->comm, &interComm->remSize);
+
+    interComm->probeBuffers.resize(interComm->remSize, 0);
+    interComm->haveProbeBuffer.resize(interComm->remSize, false);
+
+    std::cout << "connected, intercomm: " << interComm->comm << "\n";
+    std::cout << "comm null: " << MPI_COMM_NULL << "\n";
     return interComm;
 }
 
@@ -87,27 +93,70 @@ void MPIInterComm::accept(MPI_Comm ownComm)
         throw std::runtime_error("Cannot accept on non-listening MPIInterComm!");
     }
     MPI_Comm_accept(mpiPortName.c_str(), MPI_INFO_NULL, 0, ownComm, &comm);
-    MPI_Comm_set_errhandler(comm, MPI_ERRORS_RETURN);
-    MPI_Close_port(mpiPortName.c_str());
+    MPI_Comm_set_errhandler(comm, MPI_ERRORS_ARE_FATAL);
+    //MPI_Close_port(mpiPortName.c_str());
 
     MPI_Comm_remote_size(comm, &remSize);
+    std::cout << "accepted, intercomm: " << comm << "\n";
+    std::cout << "comm null: " << MPI_COMM_NULL << "\n";
+    probeBuffers.resize(remSize, 0);
+    haveProbeBuffer.resize(remSize, false);
 }
 
 void MPIInterComm::send(void *data, size_t size, int rank)
 {
-    MPI_Send(data, size, MPI_BYTE, rank, 0, comm);
+    std::cout << "Sending to " << rank << ", comm: " << comm << "\n";
+    uint8_t *buf = static_cast<uint8_t*>(data);
+    MPI_Send(buf, 1, MPI_BYTE, rank, 0, comm);
+    MPI_Send(buf + 1, size - 1, MPI_BYTE, rank, 0, comm);
 }
 
 void MPIInterComm::recv(void *data, size_t size, int rank)
 {
-    MPI_Recv(data, size, MPI_BYTE, rank, 0, comm, MPI_STATUS_IGNORE);
+    std::cout << "recving from " << rank << ", comm: " << comm << "\n";
+    uint8_t *buf = static_cast<uint8_t*>(data);
+    if (haveProbeBuffer[rank]) {
+        std::cout << "Have got probe buffer\n";
+        haveProbeBuffer[rank] = false;
+        buf[0] = probeBuffers[rank];
+        MPI_Recv(buf + 1, size - 1, MPI_BYTE, rank, 0, comm, MPI_STATUS_IGNORE);
+    } else {
+        std::cout << "No probe buffer\n";
+        MPI_Recv(buf, 1, MPI_BYTE, rank, 0, comm, MPI_STATUS_IGNORE);
+        MPI_Recv(buf + 1, size - 1, MPI_BYTE, rank, 0, comm, MPI_STATUS_IGNORE);
+    }
 }
 
 bool MPIInterComm::probe(int rank)
 {
+    if (haveProbeBuffer[rank]) {
+        std::cout << "Error! Calling probe again before recving "
+            << "invalidates the comm due to iprobe hack/bug\n";
+        throw std::runtime_error("comm state corrupted due to iprobe workaround");
+    }
+    int me = 0;
+    MPI_Comm_rank(comm, &me);
+    std::cout << "probing " << rank << " on " << me
+        << ", comm: " << comm << "\n";
     int flag = 0;
-    MPI_Iprobe(rank, 0, comm, &flag, MPI_STATUS_IGNORE);
-    return flag != 0;
+    MPI_Status status = {0};
+    MPI_Iprobe(rank, 0, comm, &flag, &status);
+    std::cout << "status: " << status.count_lo << "\n";
+
+    MPI_Request req;
+    MPI_Irecv(&probeBuffers[rank], 1, MPI_BYTE, rank, 0, comm, &req);
+    int dummy_flag = 0;
+    MPI_Test(&req, &dummy_flag, MPI_STATUS_IGNORE);
+    if (!dummy_flag) {
+        //MPI_Request_free(&req);
+    } else {
+        haveProbeBuffer[rank] = true;
+    }
+
+    std::cout << "flag: " << flag << " probe val: "
+        << (int)probeBuffers[rank] << "\n";
+    std::cout << "dummy flag: " << dummy_flag << "\n";
+    return dummy_flag != 0;
 }
 
 int MPIInterComm::probeAll()

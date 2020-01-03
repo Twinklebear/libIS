@@ -31,6 +31,12 @@ class MPIInterComm : public InterComm {
     int remSize = -1;
     std::string mpiPortName;
 
+    // Iprobe doesn't seem to actually probe properly on Stampede2
+    // so we have to do this really crappy hack with sending and
+    // irecv'ing the first byte of the message and buffering it
+    std::vector<uint8_t> probeBuffers;
+    std::vector<bool> haveProbeBuffer;
+
 public:
     MPIInterComm() = default;
     ~MPIInterComm();
