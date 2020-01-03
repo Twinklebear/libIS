@@ -90,8 +90,6 @@ std::shared_ptr<MPIInterComm> MPIInterComm::connect(const std::string &mpiPort,
     interComm->probeBuffers.resize(interComm->remSize, 0);
     interComm->haveProbeBuffer.resize(interComm->remSize, false);
 
-    std::cout << "connected, intercomm: " << interComm->comm << "\n";
-    std::cout << "comm null: " << MPI_COMM_NULL << "\n";
     return interComm;
 }
 
@@ -105,8 +103,6 @@ void MPIInterComm::accept(MPI_Comm ownComm)
     MPI_Close_port(mpiPortName.c_str());
 
     MPI_Comm_remote_size(comm, &remSize);
-    std::cout << "accepted, intercomm: " << comm << "\n";
-    std::cout << "comm null: " << MPI_COMM_NULL << "\n";
 
     activeProbes.resize(remSize, MPI_REQUEST_NULL);
     probeBuffers.resize(remSize, 0);
@@ -115,7 +111,6 @@ void MPIInterComm::accept(MPI_Comm ownComm)
 
 void MPIInterComm::send(void *data, size_t size, int rank)
 {
-    std::cout << "Sending to " << rank << ", comm: " << comm << "\n";
     uint8_t *buf = static_cast<uint8_t *>(data);
     MPI_Send(buf, 1, MPI_BYTE, rank, MPI_HACK_TAG, comm);
     MPI_Send(buf + 1, size - 1, MPI_BYTE, rank, 0, comm);
@@ -123,18 +118,15 @@ void MPIInterComm::send(void *data, size_t size, int rank)
 
 void MPIInterComm::recv(void *data, size_t size, int rank)
 {
-    std::cout << "recving from " << rank << ", comm: " << comm << "\n";
     uint8_t *buf = static_cast<uint8_t *>(data);
     if (haveProbeBuffer[rank] || activeProbes[rank] != MPI_REQUEST_NULL) {
         if (activeProbes[rank] != MPI_REQUEST_NULL) {
-            std::cout << "waiting on active probe\n" << std::flush;
             MPI_Wait(&activeProbes[rank], MPI_STATUS_IGNORE);
         }
         haveProbeBuffer[rank] = false;
         buf[0] = probeBuffers[rank];
         MPI_Recv(buf + 1, size - 1, MPI_BYTE, rank, 0, comm, MPI_STATUS_IGNORE);
     } else {
-        std::cout << "No probe buffer\n";
         MPI_Recv(buf, 1, MPI_BYTE, rank, MPI_HACK_TAG, comm, MPI_STATUS_IGNORE);
         MPI_Recv(buf + 1, size - 1, MPI_BYTE, rank, 0, comm, MPI_STATUS_IGNORE);
     }
@@ -148,28 +140,17 @@ bool MPIInterComm::probe(int rank)
         throw std::runtime_error("Must recv after successful probe before re-probing");
     }
 
-    int me = 0;
-    MPI_Comm_rank(comm, &me);
-    std::cout << "probing " << rank << " on " << me << ", comm: " << comm << "\n";
-    int flag = 0;
-    MPI_Status status = {0};
-    MPI_Iprobe(rank, 0, comm, &flag, &status);
-    std::cout << "status: " << status.count_lo << "\n";
-
     if (activeProbes[rank] == MPI_REQUEST_NULL) {
         MPI_Irecv(
             &probeBuffers[rank], 1, MPI_BYTE, rank, MPI_HACK_TAG, comm, &activeProbes[rank]);
     }
 
-    int dummy_flag = 0;
-    MPI_Test(&activeProbes[rank], &dummy_flag, MPI_STATUS_IGNORE);
-    if (dummy_flag) {
+    int flag = 0;
+    MPI_Test(&activeProbes[rank], &flag, MPI_STATUS_IGNORE);
+    if (flag) {
         haveProbeBuffer[rank] = true;
     }
-
-    std::cout << "flag: " << flag << " probe val: " << (int)probeBuffers[rank] << "\n";
-    std::cout << "dummy flag: " << dummy_flag << "\n";
-    return dummy_flag != 0;
+    return flag != 0;
 }
 
 int MPIInterComm::probeAll()
