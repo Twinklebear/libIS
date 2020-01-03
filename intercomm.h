@@ -34,6 +34,7 @@ class MPIInterComm : public InterComm {
     // Iprobe doesn't seem to actually probe properly on Stampede2
     // so we have to do this really crappy hack with sending and
     // irecv'ing the first byte of the message and buffering it
+    std::vector<MPI_Request> activeProbes;
     std::vector<uint8_t> probeBuffers;
     std::vector<bool> haveProbeBuffer;
 
