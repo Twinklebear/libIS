@@ -53,6 +53,7 @@ MPIInterComm::~MPIInterComm()
     for (auto &req : activeProbes) {
         if (req != MPI_REQUEST_NULL) {
             MPI_Cancel(&req);
+            MPI_Wait(&req, MPI_STATUS_IGNORE);
         }
     }
     MPI_Comm_disconnect(&comm);
