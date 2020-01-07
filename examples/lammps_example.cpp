@@ -32,6 +32,14 @@ void mycallback(void *ptr, bigint ntimestep, int nlocal, int *id, double **x, do
 {
     Info *info = (Info *)ptr;
 
+    libISBox3f worldBounds = libISMakeBox3f();
+    worldBounds.min.x = *(double *)lammps_extract_global(info->lmp, "boxxlo");
+    worldBounds.max.x = *(double *)lammps_extract_global(info->lmp, "boxxhi");
+    worldBounds.min.y = *(double *)lammps_extract_global(info->lmp, "boxylo");
+    worldBounds.max.y = *(double *)lammps_extract_global(info->lmp, "boxyhi");
+    worldBounds.min.z = *(double *)lammps_extract_global(info->lmp, "boxzlo");
+    worldBounds.max.z = *(double *)lammps_extract_global(info->lmp, "boxzhi");
+
     libISBox3f bounds = libISMakeBox3f();
     bounds.min.x = info->lmp->domain->sublo[0];
     bounds.max.x = info->lmp->domain->subhi[0];
@@ -48,6 +56,7 @@ void mycallback(void *ptr, bigint ntimestep, int nlocal, int *id, double **x, do
     double **pos = (double **)lammps_extract_atom(info->lmp, "x");
 
     libISSimState *state = libISMakeSimState();
+    libISSetWorldBounds(state, worldBounds);
     libISSetLocalBounds(state, bounds);
     libISSetGhostBounds(state, bounds);
 
