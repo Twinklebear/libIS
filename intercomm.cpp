@@ -36,15 +36,19 @@ bool mpi_open_port_available()
 std::shared_ptr<InterComm> InterComm::listen(MPI_Comm ownComm)
 {
     if (mpi_open_port_available()) {
+        std::cout << "Using MPI\n";
         return MPIInterComm::listen(ownComm);
     }
+    std::cout << "Using Sockets\n";
     return SocketInterComm::listen(ownComm);
 }
 std::shared_ptr<InterComm> InterComm::connect(const std::string &host, MPI_Comm ownComm)
 {
     if (mpi_open_port_available()) {
+        std::cout << "Using MPI\n";
         return MPIInterComm::connect(host, ownComm);
     }
+    std::cout << "Using Sockets\n";
     return SocketInterComm::connect(host, ownComm);
 }
 
