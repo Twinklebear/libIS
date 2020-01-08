@@ -16,8 +16,8 @@
 
 #include "is_client.h"
 #include <chrono>
-#include <cstring>
 #include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -153,8 +153,6 @@ namespace client {
             }
         }
 
-        // TODO: Logging should dump to individual files for each rank
-
         // Currently we assume an M:N mapping of sim ranks to client ranks,
         // where M >= N. As such each simulation's data is assigned to the
         // corresponding rank # on the client side. So client 0 gets data
@@ -164,24 +162,24 @@ namespace client {
         std::vector<SimState> regions(mySims, SimState());
         using namespace std::chrono;
         size_t bytes_transferred = 0;
-        size_t transfer_time = 0;
+        auto start_transfer = high_resolution_clock::now();
         for (size_t i = 0; i < regions.size(); ++i) {
             const int regionId = i + simsPerClient * rank + extraOffset;
             SimState &r = regions[i];
 
-            auto start_transfer = high_resolution_clock::now();
             // Send over a ping the the simulation rank to have it send us the data
             intercomm->send(&rank, sizeof(int), regionId);
+            bytes_transferred += sizeof(int);
 
             // Recieve the header telling us about the simulation state
             SimStateHeader header;
             intercomm->recv(&header, sizeof(SimStateHeader), regionId);
+            bytes_transferred += sizeof(SimStateHeader);
 
             r.world = header.world;
             r.local = header.local;
             r.ghost = header.ghost;
             r.simRank = header.simRank;
-            bytes_transferred += sizeof(SimStateHeader);
 
             for (uint64_t f = 0; f < header.numFields; ++f) {
                 Field field = Field::recv(intercomm, regionId);
@@ -193,10 +191,10 @@ namespace client {
                 r.particles = Particles::recv(intercomm, regionId);
                 bytes_transferred += r.particles.array->numBytes();
             }
-
-            auto end_transfer = high_resolution_clock::now();
-            transfer_time += duration_cast<nanoseconds>(end_transfer - start_transfer).count();
         }
+        auto end_transfer = high_resolution_clock::now();
+        const size_t transfer_time =
+            duration_cast<nanoseconds>(end_transfer - start_transfer).count();
 
         if (LIBIS_LOGGING) {
             std::vector<size_t> results(size * 2, 0);
@@ -210,8 +208,11 @@ namespace client {
                        0,
                        ownComm);
             if (rank == 0) {
-                std::fprintf(log, "#------#\nOn %d nodes, with %d sims/client\n"
-                        "libIS transfer times: [", size, simsPerClient);
+                std::fprintf(log,
+                             "#------#\nOn %d nodes, with %d sims/client\n"
+                             "libIS transfer times: [",
+                             size,
+                             simsPerClient);
                 for (size_t i = 0; i < results.size(); i += 2) {
                     std::fprintf(log, " %luns", results[i]);
                 }
@@ -254,7 +255,8 @@ namespace client {
 
                 struct hostent *server = gethostbyname(simServer.c_str());
                 if (!server) {
-                    throw std::runtime_error("Lookup failed for simulation server " + simServer);
+                    throw std::runtime_error("Lookup failed for simulation server " +
+                                             simServer);
                 }
 
                 struct sockaddr_in servAddr;
@@ -302,7 +304,10 @@ namespace client {
 
     static std::unique_ptr<SimulationConnection> sim;
 
-    void connect(const std::string &simServer, const int port, MPI_Comm ownComm, bool *sim_quit)
+    void connect(const std::string &simServer,
+                 const int port,
+                 MPI_Comm ownComm,
+                 bool *sim_quit)
     {
         sim = std::unique_ptr<SimulationConnection>(
             new SimulationConnection(ownComm, simServer, port));
@@ -316,7 +321,8 @@ namespace client {
 
     void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm, bool *sim_quit)
     {
-        sim = std::unique_ptr<SimulationConnection>(new SimulationConnection(ownComm, simComm));
+        sim =
+            std::unique_ptr<SimulationConnection>(new SimulationConnection(ownComm, simComm));
         if (sim->simQuit) {
             sim = nullptr;
             if (sim_quit) {
