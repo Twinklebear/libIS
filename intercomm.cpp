@@ -266,8 +266,6 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
         std::string servername;
         int port;
         parseHost(host, servername, port);
-        std::cout << "host: '" << servername << "'\n";
-        std::cout << "port: " << port << "\n";
 
         struct hostent *server = gethostbyname(servername.c_str());
         if (!server) {
@@ -309,16 +307,10 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
         }
     }
 
-    std::cout << "Rank " << rank << " has " << remoteHosts.size()
-              << " other hosts to connect to\n";
-
     // Rate limit our setup with the other hosts
     for (int i = 0; i < worldSize; i += SOCKET_MAX_SIMULTANEOUS_CONNECTIONS) {
         if (rank >= i && rank < i + SOCKET_MAX_SIMULTANEOUS_CONNECTIONS) {
             for (const auto &r : remoteHosts) {
-                std::cout << "rank " << rank << " connecting to remote " << r << "\n"
-                          << std::flush;
-
                 intercomm->sockets.push_back(socket(AF_INET, SOCK_STREAM, 0));
                 std::string servername;
                 int port;
@@ -370,7 +362,6 @@ void SocketInterComm::accept(MPI_Comm ownComm)
             std::vector<char> buf(size + 1, '\0');
             MPI_Recv(buf.data(), size, MPI_BYTE, i, 0, ownComm, MPI_STATUS_IGNORE);
             std::string host = buf.data();
-            std::cout << "Got hostport " << host << " for rank " << i << "\n";
             hosts.push_back(host);
         } else if (rank == i) {
             uint64_t size = hostPortName.size();
@@ -381,7 +372,6 @@ void SocketInterComm::accept(MPI_Comm ownComm)
 
     is::WriteBuffer hostsbuf;
     hostsbuf << hosts;
-    std::cout << "hostsbuf size: " << hostsbuf.size() << "\n";
 
     // A map of rank id to remote socket
     std::unordered_map<int, int> remotes;
@@ -389,7 +379,6 @@ void SocketInterComm::accept(MPI_Comm ownComm)
         int nconnected = 0;
         int nexpected = -1;
         while (nconnected != nexpected) {
-            std::cout << "accepting on rank 0 " << std::endl;
             struct sockaddr_in addr = {0};
             socklen_t len = sizeof(addr);
             int accepted = ::accept(listenSocket, (struct sockaddr *)&addr, &len);
@@ -401,13 +390,11 @@ void SocketInterComm::accept(MPI_Comm ownComm)
             ::recv(accepted, &remoteRank, sizeof(int), 0);
             ++nconnected;
 
-            std::cout << "Rank 0 got connection from rank: " << remoteRank << "\n";
             remotes[remoteRank] = accepted;
 
             // Remote rank 0 will tell us how many other ranks to expect to connect
             if (remoteRank == 0) {
                 ::recv(accepted, &nexpected, sizeof(int), 0);
-                std::cout << "Expecting connections from " << nexpected << " remotes\n";
                 MPI_Bcast(&nexpected, 1, MPI_INT, 0, ownComm);
             }
 
@@ -432,8 +419,6 @@ void SocketInterComm::accept(MPI_Comm ownComm)
             ::recv(accepted, &remoteRank, sizeof(int), 0);
             ++nconnected;
 
-            std::cout << "Rank " << rank << " got connection from rank: " << remoteRank
-                      << "\n";
             remotes[remoteRank] = accepted;
         }
     }

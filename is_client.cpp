@@ -221,6 +221,7 @@ namespace client {
                     std::fprintf(log, " %lub", results[i]);
                 }
                 std::fprintf(log, " ]\n");
+                std::fflush(log);
             }
         }
 
