@@ -240,6 +240,30 @@ void parseHost(const std::string &hostport, std::string &host, int &port)
     port = std::stoi(hostport.substr(fnd + 1));
 }
 
+void sendAll(int socket, void *data, size_t size) {
+    uint8_t *b = reinterpret_cast<uint8_t *>(data);
+    size_t nsent = 0;
+    while (nsent != size) {
+        int ret = ::send(socket, b + nsent, size - nsent, 0);
+        if (ret < 0) {
+            perror("send error");
+        }
+        nsent += ret;
+    }
+}
+
+void recvAll(int socket, void *data, size_t size) {
+    uint8_t *b = reinterpret_cast<uint8_t *>(data);
+    size_t nrecv = 0;
+    while (nrecv != size) {
+        int ret = ::recv(socket, b + nrecv, size - nrecv, 0);
+        if (ret < 0) {
+            perror("recv error");
+        }
+        nrecv += ret;
+    }
+}
+
 std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &host,
                                                           MPI_Comm ownComm)
 {
@@ -289,15 +313,15 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
 
                 // Now send rank 0 of the remote our rank, and get back the list of other
                 // remotes to connect to
-                ::send(intercomm->sockets[0], &rank, sizeof(int), 0);
+                sendAll(intercomm->sockets[0], &rank, sizeof(int));
                 // Rank 0 also sends the world size
                 if (rank == 0) {
-                    ::send(intercomm->sockets[0], &worldSize, sizeof(int), 0);
+                    sendAll(intercomm->sockets[0], &worldSize, sizeof(int));
                 }
                 uint64_t bufSize = 0;
-                ::recv(intercomm->sockets[0], &bufSize, sizeof(uint64_t), 0);
+                recvAll(intercomm->sockets[0], &bufSize, sizeof(uint64_t));
                 std::vector<char> recvbuf(bufSize, 0);
-                ::recv(intercomm->sockets[0], recvbuf.data(), recvbuf.size(), 0);
+                recvAll(intercomm->sockets[0], recvbuf.data(), bufSize);
 
                 is::ReadBuffer readbuf(recvbuf);
                 readbuf >> remoteHosts;
@@ -332,7 +356,7 @@ std::shared_ptr<SocketInterComm> SocketInterComm::connect(const std::string &hos
                 }
 
                 // Now send it our rank so it knows who we are
-                ::send(intercomm->sockets.back(), &rank, sizeof(int), 0);
+                sendAll(intercomm->sockets.back(), &rank, sizeof(int));
             }
         }
         MPI_Barrier(ownComm);
@@ -387,21 +411,21 @@ void SocketInterComm::accept(MPI_Comm ownComm)
             }
             // Get info about which rank this is which is connecting to us
             int remoteRank = 0;
-            ::recv(accepted, &remoteRank, sizeof(int), 0);
+            recvAll(accepted, &remoteRank, sizeof(int));
             ++nconnected;
 
             remotes[remoteRank] = accepted;
 
             // Remote rank 0 will tell us how many other ranks to expect to connect
             if (remoteRank == 0) {
-                ::recv(accepted, &nexpected, sizeof(int), 0);
+                recvAll(accepted, &nexpected, sizeof(int));
                 MPI_Bcast(&nexpected, 1, MPI_INT, 0, ownComm);
             }
 
             // Send back the list of other ranks the remote should connect to
             uint64_t bufSize = hostsbuf.size();
-            ::send(accepted, &bufSize, sizeof(uint64_t), 0);
-            ::send(accepted, hostsbuf.data(), hostsbuf.size(), 0);
+            sendAll(accepted, &bufSize, sizeof(uint64_t));;
+            sendAll(accepted, hostsbuf.data(), hostsbuf.size());
         }
     } else {
         int nconnected = 0;
@@ -416,7 +440,7 @@ void SocketInterComm::accept(MPI_Comm ownComm)
             }
             // Get info about which rank this is which is connecting to us
             int remoteRank = 0;
-            ::recv(accepted, &remoteRank, sizeof(int), 0);
+            recvAll(accepted, &remoteRank, sizeof(int));
             ++nconnected;
 
             remotes[remoteRank] = accepted;
@@ -432,28 +456,12 @@ void SocketInterComm::accept(MPI_Comm ownComm)
 
 void SocketInterComm::send(void *data, size_t size, int rank)
 {
-    uint8_t *b = reinterpret_cast<uint8_t *>(data);
-    size_t nsent = 0;
-    while (nsent != size) {
-        int ret = ::send(sockets[rank], b + nsent, size - nsent, 0);
-        if (ret < 0) {
-            perror("send error");
-        }
-        nsent += ret;
-    }
+    sendAll(sockets[rank], data, size);
 }
 
 void SocketInterComm::recv(void *data, size_t size, int rank)
 {
-    uint8_t *b = reinterpret_cast<uint8_t *>(data);
-    size_t nrecv = 0;
-    while (nrecv != size) {
-        int ret = ::recv(sockets[rank], b + nrecv, size - nrecv, 0);
-        if (ret < 0) {
-            perror("recv error");
-        }
-        nrecv += ret;
-    }
+    recvAll(sockets[rank], data, size);
 }
 
 bool SocketInterComm::probe(int rank)
