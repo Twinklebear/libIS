@@ -140,11 +140,11 @@ namespace client {
             r.simRank = header.simRank;
             bytes_transferred += sizeof(SimStateHeader);
 
-            for (uint64_t f = 0; f < header.numFields; ++f) {
-                Field field = Field::recv(intercomm, regionId);
-                bytes_transferred += field.array->numBytes();
+            for (uint64_t f = 0; f < header.numBuffers; ++f) {
+                Buffer buf = Buffer::recv(intercomm, regionId);
+                bytes_transferred += buf.array->numBytes();
 
-                r.fields[field.name] = field;
+                r.buffers[buf.name] = buf;
             }
             if (header.hasParticles) {
                 r.particles = Particles::recv(intercomm, regionId);

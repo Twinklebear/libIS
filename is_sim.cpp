@@ -305,8 +305,8 @@ namespace sim {
         intercomm->send(&header, sizeof(SimStateHeader), myClient);
 
         // TODO: Have the client tell us what it wants instead of sending over everything
-        for (const auto &field : state->fields) {
-            field.second.send(intercomm, myClient);
+        for (const auto &buf : state->buffers) {
+            buf.second.send(intercomm, myClient);
         }
         if (header.hasParticles) {
             state->particles.send(intercomm, myClient);
@@ -388,8 +388,20 @@ extern "C" void libISSetField(libISSimState *s,
         const_cast<void *>(data),
         dimensions[0] * dimensions[1] * dimensions[2] * elemStride,
         elemStride);
-    s->state->fields[fieldName] = Field(fieldName, type, dimensions, array);
+    s->state->buffers[fieldName] = Buffer(fieldName, type, dimensions, array);
 }
+
+extern "C" void libISSetBuffer(libISSimState *s,
+                               const char *bufferName,
+                               const uint64_t size,
+                               const void *data)
+{
+    using namespace is;
+    std::shared_ptr<Array> array =
+        std::make_shared<BorrowedArray>(const_cast<void *>(data), size, 1);
+    s->state->buffers[bufferName] = Buffer(bufferName, size, array);
+}
+
 extern "C" void libISSetParticles(libISSimState *s,
                                   const uint64_t numParticles,
                                   const uint64_t numGhostParticles,

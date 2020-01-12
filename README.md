@@ -81,7 +81,7 @@ The simulation side library provides a non-blocking C API, to allow easier integ
 into a range of simulations.
 Simulations communicate their data to libIS by creating and filling out a
 `libISSimState` object. This object contains metadata about the
-simulation bounds, fields, data types, particles, and pointers to the underlying
+simulation bounds, fields, buffers, data types, particles, and pointers to the underlying
 arrays.
 
 A simulation using libIS should first initialize MPI, then call
@@ -122,7 +122,7 @@ Create and free a simulation state object. Typically only
 one is required, which can then be updated with the simulation state
 by either specifying the meta-data and simulation data pointers
 once up front, or, if the simulation uses different buffers
-between timesteps, by re-specifying the changed fields each
+between timesteps, by re-specifying the changed data each
 timestep to overwrite the previous meta-data and pointer.
 
 ```c
@@ -167,6 +167,19 @@ data it will be sent as a copy over MPI.
 - `dimensions`: XYZ dimensions of the grid
 - `type`: type of data in the field, one of `UINT8`, `FLOAT` or `DOUBLE`
 - `data`: the pointer to the field data, shared with the simulation.
+
+```c
+void libISSetBuffer(libISSimState *state, const char *bufferName,
+    const uint64_t size, const void *data);
+```
+Set or update a 1D buffer which will be sent to clients querying data. The
+pointer is shared with the simulation, when a client connects and requests
+data it will be sent as a copy over MPI.
+
+- `bufferName`: name of buffer to create, if `bufferName` has been specified before
+	the existing entry will be updated.
+- `size`: size in bytes of the buffer
+- `data`: the pointer to the buffer data, shared with the simulation.
 
 ```c
 void libISSetParticles(libISSimState *state, const uint64_t numParticles,
@@ -238,29 +251,29 @@ struct SimState {
     libISBox3f world, local, ghost;
     // The rank we received this data from
     int simRank;
-    // Regular 3D grid fields, indexed by the field name
-    std::unordered_map<std::string, Field> fields;
+    // Regular 3D grid fields and 1D buffers, indexed by the field or buffer name
+    std::unordered_map<std::string, Buffer> buffers;
     // Particle data on the rank, if any
     Particles particles;
 
-    std::vector<std::string> fieldNames() const;
+    std::vector<std::string> BufferNames() const;
 };
 ```
 Each `SimState` returned corresponds to a sub-domain of the simulation,
-on some rank and will contain the field and particle data
+on some rank and will contain the field, buffer, and particle data
 set by that rank.
 
 ```c++
-struct Field {
+struct Buffer {
     std::string name;
     libISDType dataType;
-    // X, Y, Z dimensions of the field
+    // X, Y, Z dimensions of the buffer
     std::array<uint64_t, 3> dims;
-    // The field data
+    // The buffer data
     std::shared_ptr<Array> array;
 };
 ```
-A 3D regular grid field of data in the simulation.
+A 1D buffer or 3D regular grid of data in the simulation.
 
 ```c++
 struct Particles {
@@ -286,7 +299,7 @@ An abstract array interface, which may refer to an array of data we own or are b
 Contains information about the size of the array (in elements), and the stride (in bytes)
 between each element in the array. For example, the array in the `Particles`
 object will have the stride set to the size of a particle. The type information
-is kept separately, either on the `Field` structure, or is assumed to be known
+is kept separately, either on the `Buffer` structure, or is assumed to be known
 by the client in the case of the `Particles`.
 
 ## Running the Examples

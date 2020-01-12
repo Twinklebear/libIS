@@ -72,9 +72,9 @@ int main(int ac, char **av)
                 // For each region we received, print out its data
                 for (const auto &r : regions) {
                     std::cout << "region has " << r.particles.numParticles << " particles and "
-                              << r.fields.size() << " fields\n";
-                    std::cout << "Fields: {";
-                    for (const auto &f : r.fields) {
+                              << r.buffers.size() << " buffers\n";
+                    std::cout << "Buffers: {";
+                    for (const auto &f : r.buffers) {
                         std::cout << "(" << f.first << ", ";
                         if (f.second.dataType == UINT8) {
                             std::cout << "uint8";

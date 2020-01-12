@@ -68,23 +68,26 @@ struct BorrowedArray : Array {
     size_t numBytes() const override;
 };
 
-/* A 3D regular grid field of data in the simulation
+/* A 1D or 3D buffer of data corresponding to arbitrary buffers of data,
+ * or 3D grid fields
  */
-struct Field {
+struct Buffer {
     std::string name;
     libISDType dataType;
     std::array<uint64_t, 3> dims;
-    // The field data
+    // The data
     std::shared_ptr<Array> array;
 
-    Field();
-    Field(const std::string &name,
-          libISDType type,
-          const uint64_t dims[3],
-          std::shared_ptr<Array> &array);
+    Buffer();
+    Buffer(const std::string &name,
+           libISDType type,
+           const uint64_t dims[3],
+           std::shared_ptr<Array> &array);
+
+    Buffer(const std::string &name, const uint64_t size, std::shared_ptr<Array> &array);
 
     void send(std::shared_ptr<InterComm> &intercomm, const int rank) const;
-    static Field recv(std::shared_ptr<InterComm> &intercomm, const int rank);
+    static Buffer recv(std::shared_ptr<InterComm> &intercomm, const int rank);
 };
 
 /* An array of particles in the simulation, along with any ghost particles
@@ -112,17 +115,17 @@ struct SimState {
     libISBox3f world, local, ghost;
     // The rank we received this data from
     int simRank;
-    std::unordered_map<std::string, Field> fields;
+    std::unordered_map<std::string, Buffer> buffers;
     Particles particles;
 
-    std::vector<std::string> fieldNames() const;
+    std::vector<std::string> bufferNames() const;
 };
 
 #pragma pack(1)
 struct SimStateHeader {
     libISBox3f world, local, ghost;
     uint32_t simRank;
-    uint64_t numFields;
+    uint64_t numBuffers;
     uint32_t hasParticles;
 
     SimStateHeader();

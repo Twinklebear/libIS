@@ -66,15 +66,19 @@ size_t BorrowedArray::numBytes() const
     return arrayBytes;
 }
 
-Field::Field() : dataType(INVALID), dims({0, 0, 0}) {}
-Field::Field(const std::string &name,
-             libISDType type,
-             const uint64_t dims[3],
-             std::shared_ptr<Array> &array)
+Buffer::Buffer() : dataType(INVALID), dims({0, 0, 0}) {}
+Buffer::Buffer(const std::string &name,
+               libISDType type,
+               const uint64_t dims[3],
+               std::shared_ptr<Array> &array)
     : name(name), dataType(type), dims({dims[0], dims[1], dims[2]}), array(array)
 {
 }
-void Field::send(std::shared_ptr<InterComm> &intercomm, const int rank) const
+Buffer::Buffer(const std::string &name, const uint64_t size, std::shared_ptr<Array> &array)
+    : name(name), dataType(UINT8), dims({size, 1, 1}), array(array)
+{
+}
+void Buffer::send(std::shared_ptr<InterComm> &intercomm, const int rank) const
 {
     WriteBuffer header;
     header << name << (uint32_t)dataType << dims << array->numBytes() << array->stride();
@@ -83,7 +87,7 @@ void Field::send(std::shared_ptr<InterComm> &intercomm, const int rank) const
     intercomm->send(header.data(), header.size(), rank);
     intercomm->send(array->data(), array->numBytes(), rank);
 }
-Field Field::recv(std::shared_ptr<InterComm> &intercomm, const int rank)
+Buffer Buffer::recv(std::shared_ptr<InterComm> &intercomm, const int rank)
 {
     uint64_t headerSize = 0;
     intercomm->recv(&headerSize, sizeof(uint64_t), rank);
@@ -92,15 +96,15 @@ Field Field::recv(std::shared_ptr<InterComm> &intercomm, const int rank)
     intercomm->recv(headerBuf.data(), headerSize, rank);
     ReadBuffer header(headerBuf);
 
-    Field field;
+    Buffer buffer;
     uint32_t dtype;
-    uint64_t fieldBytes, elemStride;
-    header >> field.name >> dtype >> field.dims >> fieldBytes >> elemStride;
-    field.dataType = (libISDType)dtype;
+    uint64_t nBytes, elemStride;
+    header >> buffer.name >> dtype >> buffer.dims >> nBytes >> elemStride;
+    buffer.dataType = (libISDType)dtype;
 
-    field.array = std::make_shared<OwnedArray>(fieldBytes, elemStride);
-    intercomm->recv(field.array->data(), field.array->numBytes(), rank);
-    return field;
+    buffer.array = std::make_shared<OwnedArray>(nBytes, elemStride);
+    intercomm->recv(buffer.array->data(), buffer.array->numBytes(), rank);
+    return buffer;
 }
 
 Particles::Particles() : numParticles(0), numGhost(0) {}
@@ -132,23 +136,23 @@ Particles Particles::recv(std::shared_ptr<InterComm> &intercomm, const int rank)
     return particles;
 }
 
-std::vector<std::string> SimState::fieldNames() const
+std::vector<std::string> SimState::bufferNames() const
 {
     std::vector<std::string> names;
-    names.reserve(fields.size());
-    for (const auto &f : fields) {
+    names.reserve(buffers.size());
+    for (const auto &f : buffers) {
         names.push_back(f.first);
     }
     return names;
 }
 
-SimStateHeader::SimStateHeader() : simRank(uint32_t(-1)), numFields(0), hasParticles(0) {}
+SimStateHeader::SimStateHeader() : simRank(uint32_t(-1)), numBuffers(0), hasParticles(0) {}
 SimStateHeader::SimStateHeader(const SimState *state)
     : world(state->world),
       local(state->local),
       ghost(state->ghost),
       simRank(state->simRank),
-      numFields(state->fields.size()),
+      numBuffers(state->buffers.size()),
       hasParticles(state->particles.numParticles)
 {
 }

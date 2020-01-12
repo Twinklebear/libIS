@@ -75,6 +75,20 @@ extern "C" void libISSetField(libISSimState *state,
                               const libISDType type,
                               const void *data);
 
+/* Set or update a buffer which will be sent to clients querying data. The
+ * pointer is shared with the simulation, when a client connects and requests
+ * data it will be sent as a copy over MPI.
+ *
+ * bufferName: name of buffer to create or update
+ * size: size of the buffer (in bytes)
+ * data: pointer to the field data, will be shared with the simulation with a copy
+ *       sent to clients during processing.
+ */
+extern "C" void libISSetBuffer(libISSimState *state,
+                               const char *bufferName,
+                               const uint64_t size,
+                               const void *data);
+
 /* Set or update the particle data which will be sent to clients querying data. The
  * pointer is shared with the simulation, when a client connects and requests
  * data it will be sent as a copy over MPI. The particle array should be organized
