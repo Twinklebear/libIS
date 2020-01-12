@@ -85,32 +85,6 @@ namespace sim {
             listenerThread = std::thread([&]() { listenForClient(); });
         }
     }
-    ConnectionManager::ConnectionManager(MPI_Comm sim, MPI_Comm client)
-        : simComm(MPI_COMM_NULL),
-          clientComm(MPI_COMM_NULL),
-          clientCommand(INVALID),
-          simSize(-1),
-          simRank(-1),
-          newQuery(false),
-          exitThread(true),
-          newCommand(MPI_REQUEST_NULL)
-    {
-        MPI_Comm_dup(sim, &simComm);
-        MPI_Comm_size(simComm, &simSize);
-        MPI_Comm_rank(simComm, &simRank);
-
-        clientComm = client;
-        int isInterComm = 0;
-        MPI_Comm_test_inter(clientComm, &isInterComm);
-        /* TODO
-        if (isInterComm) {
-            MPI_Comm_remote_size(clientComm, &clientSize);
-        } else {
-            MPI_Comm_size(clientComm, &clientSize);
-        }
-        */
-        std::cout << "WILL TODO UPDATE\n";
-    }
     ConnectionManager::~ConnectionManager()
     {
         if (listenerThread.joinable()) {
@@ -237,7 +211,6 @@ namespace sim {
         int quit = 0;
         int haveQuery = newQuery ? 1 : 0;
         // Asynchronously check for client commands if we've got a client connected
-        // TODO: Re-add intracomm support
         if (!haveQuery && simRank == 0 && intercomm != nullptr) {
             haveQuery = intercomm->probe(0) ? 1 : 0;
             if (haveQuery) {
@@ -314,26 +287,6 @@ namespace sim {
                 listenerThread = std::thread([&]() { listenForClient(); });
             }
         }
-        /*
-         * REMAINING TODO for handling intracomm now
-        if (clientComm != MPI_COMM_NULL) {
-            int isInterComm = 0;
-            MPI_Comm_test_inter(clientComm, &isInterComm);
-            if (isInterComm) {
-                MPI_Comm_disconnect(&clientComm);
-                // Watch for new clients again
-                if (simRank == 0) {
-                    if (listenerThread.joinable()) {
-                        listenerThread.join();
-                    }
-                    listenerThread = std::thread([&](){ listenForClient(); });
-                }
-            } else {
-                MPI_Barrier(clientComm);
-                clientComm = MPI_COMM_NULL;
-            }
-        }
-        */
     }
     void ConnectionManager::handleQuery(const SimState *state)
     {
@@ -383,12 +336,6 @@ extern "C" void libISInit(MPI_Comm sim, const int port)
     using namespace is::sim;
     LISTEN_PORT = port;
     manager = std::unique_ptr<ConnectionManager>(new ConnectionManager(sim));
-}
-extern "C" void libISInitWithExisting(MPI_Comm simWorld, MPI_Comm clientComm)
-{
-    using namespace is::sim;
-    LISTEN_PORT = std::numeric_limits<uint16_t>::max();
-    manager = std::unique_ptr<ConnectionManager>(new ConnectionManager(simWorld, clientComm));
 }
 extern "C" void libISFinalize()
 {

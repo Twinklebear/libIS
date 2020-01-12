@@ -37,10 +37,6 @@ typedef struct libISSimState libISSimState;
  * and listen on the port number specified.
  */
 extern "C" void libISInit(MPI_Comm simWorld, const int port);
-/* Initialize the library to use the already established
- * communicator with the client processes.
- */
-extern "C" void libISInitWithExisting(MPI_Comm simWorld, MPI_Comm clientComm);
 /* Shutdown the library, cleans up MPI communicator and terminates
  * the background listening thread.
  */

@@ -106,24 +106,6 @@ connect to a simulation with this approach.
 	running on all ranks in world.
 - `port`: the port that libIS should listen for client connections on
 
-Note: this is temporarily broken, though may not be needed since the socket fallback
-layer can provide connect/disconnect functionality even when `MPI_Open_port` is not
-available. If this API is needed please revert to commit `dcc46d9` for now.
-
-```c
-void libISInitWithExisting(MPI_Comm simWorld, MPI_Comm clientComm);
-```
-Initialize the library to use a previously established MPI inter-
-or intra-communicator with the client. Clients should call
-`is::client::connectWithExisting` to connect to a simulation with this
-approach.
-
-- `simWorld`: the simulation's `MPI_COMM_WORLD`, or equivalent if not
-	running on all ranks in world.
-- `clientComm`: the previously setup communicator with the clients. This
-	should be the same comm as passed to `simComm` when the client
-	calls `is::client::connectWithExisting`.
-
 ```c
 void libISFinalize(void)
 ```
@@ -233,18 +215,6 @@ for `libISInit`
 	in `libISInit`
 - `ownComm`: the client's `MPI_COMM_WORLD`, or equivalent if running on
 	a subset of ranks in the world.
-
-```c++
-void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm);
-```
-Connect to a simulation over the previously established MPI communicator.
-This is the matching connection call for `libISInitWithExisting`
-
-- `ownComm`: the client's `MPI_COMM_WORLD`, or equivalent if running on
-	a subset of ranks in the world.
-- `simComm`: the previously setup communicator with the simulation. This
-	should be the same comm as was passed to `clientComm` when
-	`libISInitWithExisting` was called on the simulation.
 
 ```c++
 void is::client::disconnect()

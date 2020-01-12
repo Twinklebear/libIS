@@ -37,10 +37,6 @@ namespace client {
                  MPI_Comm ownComm,
                  bool *sim_quit = nullptr);
 
-    /* Connect to a simulation over an already established MPI communicator
-     */
-    void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm, bool *sim_quit = nullptr);
-
     /* Query our region in the next timestep from the simulation.
      * This call will block until the simulation responds with
      * the data.

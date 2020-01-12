@@ -49,7 +49,7 @@ namespace client {
     struct SimulationConnection {
         MPI_Comm simComm, ownComm;
         std::shared_ptr<InterComm> intercomm = nullptr;
-        int rank, size, clientIntraCommRoot;
+        int rank, size;
         int simSocket, simPort;
         int simQuit = 0;
         std::string myPortName, simServer;
@@ -57,7 +57,6 @@ namespace client {
         std::FILE *log = nullptr;
 
         SimulationConnection(MPI_Comm com, const std::string &simServer, const int port);
-        SimulationConnection(MPI_Comm com, MPI_Comm sim);
         ~SimulationConnection();
         std::vector<SimState> query();
 
@@ -73,7 +72,6 @@ namespace client {
           ownComm(MPI_COMM_NULL),
           rank(-1),
           size(-1),
-          clientIntraCommRoot(0),
           simSocket(-1),
           simPort(port),
           simServer(simServer)
@@ -86,40 +84,6 @@ namespace client {
             log = std::fopen(LIBIS_LOG_OUTPUT.c_str(), "wa");
         }
         connectSim();
-    }
-    SimulationConnection::SimulationConnection(MPI_Comm com, MPI_Comm sim)
-        : simComm(MPI_COMM_NULL),
-          ownComm(MPI_COMM_NULL),
-          rank(-1),
-          size(-1),
-          clientIntraCommRoot(0),
-          simSocket(-1),
-          simPort(std::numeric_limits<uint16_t>::max())
-    {
-        MPI_Comm_dup(com, &ownComm);
-        MPI_Comm_size(ownComm, &size);
-        MPI_Comm_rank(ownComm, &rank);
-        check_logging_wanted();
-        if (LIBIS_LOGGING) {
-            log = std::fopen(LIBIS_LOG_OUTPUT.c_str(), "wa");
-        }
-
-        simComm = sim;
-        int isInterComm = 0;
-        MPI_Comm_test_inter(simComm, &isInterComm);
-        /*
-           TODO
-        if (isInterComm) {
-            MPI_Comm_remote_size(simComm, &simSize);
-        } else {
-            MPI_Comm_size(simComm, &simSize);
-            if (rank == 0) {
-                MPI_Comm_rank(simComm, &clientIntraCommRoot);
-            }
-            MPI_Bcast(&clientIntraCommRoot, 1, MPI_INT, 0, ownComm);
-        }
-        */
-        std::cout << "WILL TODO UPDATE THIS!\n";
     }
     SimulationConnection::~SimulationConnection()
     {
@@ -138,11 +102,6 @@ namespace client {
         }
 
         int correctedSimSize = intercomm->remoteSize();
-        // TODO: This is assuming the use existing comm mode is running in mpi
-        // multi-program launch mode.
-        if (clientIntraCommRoot != 0) {
-            correctedSimSize = clientIntraCommRoot;
-        }
         const int simsPerClient = correctedSimSize / size;
         int mySims = simsPerClient;
         int extraOffset = 0;
@@ -152,8 +111,6 @@ namespace client {
                 mySims += 1;
             }
         }
-
-        // TODO: Logging should dump to individual files for each rank
 
         // Currently we assume an M:N mapping of sim ranks to client ranks,
         // where M >= N. As such each simulation's data is assigned to the
@@ -306,17 +263,6 @@ namespace client {
     {
         sim = std::unique_ptr<SimulationConnection>(
             new SimulationConnection(ownComm, simServer, port));
-        if (sim->simQuit) {
-            sim = nullptr;
-            if (sim_quit) {
-                *sim_quit = true;
-            }
-        }
-    }
-
-    void connectWithExisting(MPI_Comm ownComm, MPI_Comm simComm, bool *sim_quit)
-    {
-        sim = std::unique_ptr<SimulationConnection>(new SimulationConnection(ownComm, simComm));
         if (sim->simQuit) {
             sim = nullptr;
             if (sim_quit) {
