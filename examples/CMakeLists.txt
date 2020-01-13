@@ -25,6 +25,11 @@ target_link_libraries(example_sim PRIVATE is_sim ${MPI_CXX_LIBRARIES})
 target_include_directories(example_sim PRIVATE
 	$<BUILD_INTERFACE:${MPI_CXX_INCLUDE_PATH}>)
 
+add_executable(volume_example_sim volume_example_sim.cpp)
+target_link_libraries(volume_example_sim PRIVATE is_sim ${MPI_CXX_LIBRARIES})
+target_include_directories(volume_example_sim PRIVATE
+	$<BUILD_INTERFACE:${MPI_CXX_INCLUDE_PATH}>)
+
 add_executable(example_client example_client.cpp)
 target_link_libraries(example_client PRIVATE is_client ${MPI_CXX_LIBRARIES})
 target_include_directories(example_client PRIVATE
