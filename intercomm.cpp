@@ -60,7 +60,9 @@ MPIInterComm::~MPIInterComm()
             MPI_Wait(&req, MPI_STATUS_IGNORE);
         }
     }
-    MPI_Comm_disconnect(&comm);
+    // Even with all comm cancelled or completed, disconnect still hangs!? Wtf mpi..
+    // MPI_Comm_disconnect(&comm);
+    MPI_Comm_free(&comm);
 }
 
 std::shared_ptr<MPIInterComm> MPIInterComm::listen(MPI_Comm ownComm)
@@ -240,7 +242,8 @@ void parseHost(const std::string &hostport, std::string &host, int &port)
     port = std::stoi(hostport.substr(fnd + 1));
 }
 
-void sendAll(int socket, void *data, size_t size) {
+void sendAll(int socket, void *data, size_t size)
+{
     uint8_t *b = reinterpret_cast<uint8_t *>(data);
     size_t nsent = 0;
     while (nsent != size) {
@@ -252,7 +255,8 @@ void sendAll(int socket, void *data, size_t size) {
     }
 }
 
-void recvAll(int socket, void *data, size_t size) {
+void recvAll(int socket, void *data, size_t size)
+{
     uint8_t *b = reinterpret_cast<uint8_t *>(data);
     size_t nrecv = 0;
     while (nrecv != size) {
@@ -424,7 +428,7 @@ void SocketInterComm::accept(MPI_Comm ownComm)
 
             // Send back the list of other ranks the remote should connect to
             uint64_t bufSize = hostsbuf.size();
-            sendAll(accepted, &bufSize, sizeof(uint64_t));;
+            sendAll(accepted, &bufSize, sizeof(uint64_t));
             sendAll(accepted, hostsbuf.data(), hostsbuf.size());
         }
     } else {

@@ -237,7 +237,6 @@ namespace sim {
         int quit = 0;
         int haveQuery = newQuery ? 1 : 0;
         // Asynchronously check for client commands if we've got a client connected
-        // TODO: Re-add intracomm support
         if (!haveQuery && simRank == 0 && intercomm != nullptr) {
             haveQuery = intercomm->probe(0) ? 1 : 0;
             if (haveQuery) {

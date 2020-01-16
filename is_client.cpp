@@ -292,8 +292,6 @@ namespace client {
                 intercomm->recv(&simQuit, sizeof(int), 0);
             }
         }
-        MPI_Barrier(ownComm);
-
         MPI_Bcast(&simQuit, 1, MPI_INT, 0, ownComm);
         return simQuit;
     }
