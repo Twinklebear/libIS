@@ -3,8 +3,8 @@
 ---
 
 libIS is an in situ data management layer for easily using or prototyping in transit visualization.
-An example video of the our viewer can be seen on [YouTube](https://youtu.be/YUH55CvPmxg),
-the viewer code is available [here](https://github.com/ospray/ospray_senpai).
+An example video of the our viewer can be seen on [YouTube](https://youtu.be/YUH55CvPmxg).
+For an updated example of rendering data retrieved using libIS please see [mini-cinema's libIS branch](https://github.com/Twinklebear/mini-cinema/tree/libis).
 This is the code for the core library described in the paper, see
 [the paper for more details](https://www.willusher.io/publications/libis-isav18).
 
